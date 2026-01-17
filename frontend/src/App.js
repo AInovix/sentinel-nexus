@@ -4,7 +4,7 @@ import axios from 'axios';
 
 import 'leaflet/dist/leaflet.css';
 
-// Leaflet default icon fix - disable ESLint no-undef for global L
+// Leaflet icon fix with ESLint disable
 /* eslint-disable no-undef */
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -20,18 +20,9 @@ function App() {
   const [weather, setWeather] = useState(null);
   const [markers, setMarkers] = useState([]);
   const [alertMessage, setAlertMessage] = useState('');
+  const [threatLevel, setThreatLevel] = useState('LOW'); // LOW / MEDIUM / HIGH
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem('darkMode');
-    return saved ? JSON.parse(saved) : false;
-  });
-
-  const toggleDarkMode = () => {
-    const newMode = !darkMode;
-    setDarkMode(newMode);
-    localStorage.setItem('darkMode', JSON.stringify(newMode));
-  };
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -44,42 +35,35 @@ function App() {
       setThreats(res.data.threats || []);
       setWeather(res.data.weather);
 
-      // Distribute markers roughly across the globe
-      const newMarkers = newsItems.map((item, i) => {
-        const lat = -60 + Math.random() * 140; // Roughly -60 to 80
-        const lng = -170 + Math.random() * 340; // Roughly -170 to 170
-        return {
-          position: [lat, lng],
-          popup: item.title || 'Location'
-        };
-      });
+      const newMarkers = newsItems.map(() => ({
+        position: [-60 + Math.random() * 140, -170 + Math.random() * 340],
+        popup: 'Active Event'
+      }));
       setMarkers(newMarkers);
 
-      // Simple threat detection via keywords
-      const hasThreat = newsItems.some(item =>
-        item.description?.toLowerCase().match(/threat|attack|missile|conflict|crisis|war|bomb|strike|invasion/)
-      );
-
-      if (hasThreat) {
-        setAlertMessage('High-threat indicators detected in global news');
-        if (Notification.permission === 'granted') {
-          new Notification('Sentinel Nexus Alert', {
-            body: 'Keywords suggesting potential threat or conflict detected'
-          });
-        }
-      } else {
-        setAlertMessage('');
-      }
+      const threatKeywords = /threat|attack|missile|conflict|crisis|war|bomb|strike|invasion|cyber|breach/i;
+      const hasHighThreat = newsItems.some(item => threatKeywords.test(item.description || item.title || ''));
+      setThreatLevel(hasHighThreat ? 'HIGH' : newsItems.length > 5 ? 'MEDIUM' : 'LOW');
+      setAlertMessage(hasHighThreat ? 'ELEVATED THREAT LEVEL - IMMEDIATE REVIEW RECOMMENDED' : '');
     } catch (err) {
-      console.error('Dashboard fetch failed:', err);
-      setError('Failed to load real-time data. Showing fallback view.');
-      // Fallback mock data so UI still renders
+      setError('Real-time feeds unavailable. Using strategic overview mode.');
+      // Richer mock data for professional fallback
       setNews([
-        { title: 'Global tensions reported', description: 'Unconfirmed military activity' },
-        { title: 'Diplomatic efforts underway', description: 'International talks to de-escalate' }
+        { title: 'Unconfirmed missile activity in contested zone', description: 'Satellite imagery shows movement - high confidence source' },
+        { title: 'Cyber intrusion attempt on critical infrastructure', description: 'State actor suspected - ongoing containment' },
+        { title: 'Border escalation reported', description: 'Troop buildup observed - diplomatic channels engaged' }
       ]);
-      setThreats([{ signature: 'Emerging malware variant', first_seen: '2026-01-15' }]);
-      setWeather({ current_weather: { temperature: 22, windspeed: 14 } });
+      setThreats([
+        { signature: 'RANSOMWARE-VAR-2026A', first_seen: '2026-01-16' },
+        { signature: 'APT-41 Campaign Spike', first_seen: '2026-01-15' }
+      ]);
+      setWeather({ current_weather: { temperature: 18, windspeed: 25 } });
+      setMarkers([
+        { position: [35, 45], popup: 'Hot Zone Alpha' },
+        { position: [-10, 120], popup: 'Emerging Incident' }
+      ]);
+      setThreatLevel('MEDIUM');
+      setAlertMessage('Fallback mode active - limited intelligence available');
     } finally {
       setIsLoading(false);
     }
@@ -87,58 +71,41 @@ function App() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 600000); // 10 min refresh
+    const interval = setInterval(fetchData, 300000); // 5 min in production feel
     return () => clearInterval(interval);
   }, [fetchData]);
 
   useEffect(() => {
-    if ("Notification" in window && Notification.permission !== 'denied') {
-      Notification.requestPermission();
-    }
-
-    // Load Twitter/X embed script
+    if ("Notification" in window) Notification.requestPermission();
     const script = document.createElement('script');
     script.src = "https://platform.twitter.com/widgets.js";
     script.async = true;
-    script.charset = "utf-8";
     document.body.appendChild(script);
-
-    return () => {
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
-      }
-    };
+    return () => document.body.removeChild(script);
   }, []);
 
   const memoizedMarkers = useMemo(() => markers, [markers]);
 
-  const themeClass = darkMode ? 'dark-theme' : 'light-theme';
+  const threatColor = threatLevel === 'HIGH' ? '#ef4444' : threatLevel === 'MEDIUM' ? '#f59e0b' : '#10b981';
 
   return (
-    <div className={`app-container ${themeClass}`}>
-      <header className="app-header">
-        <h1>Sentinel Nexus</h1>
-        <button
-          onClick={toggleDarkMode}
-          className="mode-toggle"
-          aria-label="Toggle dark/light mode"
-        >
-          {darkMode ? '☀️ Light' : '🌙 Dark'}
-        </button>
+    <div className="app dark">
+      <header className="header">
+        <div className="title">SENTINEL NEXUS</div>
+        <div className="status-bar">
+          <div className="threat-gauge">
+            <span>THREAT LEVEL:</span>
+            <div className="gauge-bar" style={{ background: threatColor }}>
+              {threatLevel}
+            </div>
+          </div>
+        </div>
       </header>
 
-      <div className="main-layout">
-        {/* Map */}
-        <div className="map-section">
-          <MapContainer
-            center={[15, 0]}
-            zoom={2.2}
-            style={{ height: '100%', width: '100%' }}
-          >
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            />
+      <div className="layout">
+        <div className="map-container">
+          <MapContainer center={[20, 0]} zoom={2.5} style={{ height: '100%' }}>
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             {memoizedMarkers.map((m, i) => (
               <Marker key={i} position={m.position}>
                 <Popup>{m.popup}</Popup>
@@ -147,304 +114,190 @@ function App() {
           </MapContainer>
         </div>
 
-        {/* Sidebar */}
         <aside className="sidebar">
-          {isLoading && (
-            <div className="loading-overlay">
-              <div className="spinner"></div>
-              <p>Loading global intelligence...</p>
+          {isLoading && <div className="loading">Initializing situational awareness...</div>}
+          {error && <div className="error-banner">{error}</div>}
+
+          {alertMessage && (
+            <div className="alert-banner" style={{ background: threatColor }}>
+              <strong>PRIORITY ALERT</strong>
+              <p>{alertMessage}</p>
             </div>
           )}
 
-          {error && <div className="error-message">{error}</div>}
-
-          {/* News */}
-          <section className="card-section">
-            <h2>BBC World News</h2>
-            <div className="news-list">
-              {news.slice(0, 10).map((item, i) => (
-                <div key={i} className="news-card">
-                  <h3>{item.title}</h3>
-                  <p className="news-desc">
-                    {item.description?.substring(0, 120)}
-                    {item.description?.length > 120 ? '...' : ''}
-                  </p>
+          <section className="panel">
+            <h2>Global News Feed</h2>
+            <div className="feed">
+              {news.map((item, i) => (
+                <div key={i} className="feed-item">
+                  <div className="item-title">{item.title}</div>
+                  <div className="item-desc">{item.description?.substring(0, 140) || ''}...</div>
                 </div>
               ))}
-              {news.length === 0 && !isLoading && <p className="empty-state">No news available</p>}
             </div>
           </section>
 
-          {/* Threats */}
-          <section className="card-section">
-            <h2>Recent Malware & Threats</h2>
+          <section className="panel">
+            <h2>Active Threats</h2>
             <ul className="threat-list">
-              {threats.slice(0, 8).map((t, i) => (
+              {threats.map((t, i) => (
                 <li key={i}>
-                  <strong>{t.signature || 'Unknown sample'}</strong>
-                  <span> • {t.first_seen?.substring(0, 10) || '—'}</span>
+                  <span className="threat-name">{t.signature || 'Unknown'}</span>
+                  <span className="threat-date">{t.first_seen || 'Recent'}</span>
                 </li>
               ))}
             </ul>
           </section>
 
-          {/* X Feeds */}
-          <section className="card-section">
-            <h2>Live Intelligence Feeds</h2>
-
-            <div className="twitter-embed">
-              <h3>BBC Breaking</h3>
-              <div className="twitter-container">
-                <a
-                  className="twitter-timeline"
-                  href="https://twitter.com/BBCBreaking"
-                  data-height="380"
-                  data-theme={darkMode ? "dark" : "light"}
-                  data-chrome="noheader nofooter noborders transparent"
-                >
-                  Tweets by BBCBreaking
-                </a>
+          <section className="panel">
+            <h2>OSINT Feeds</h2>
+            <div className="embed-grid">
+              <div className="embed-item">
+                <a className="twitter-timeline" href="https://twitter.com/BBCBreaking" data-height="320" data-theme="dark">BBC Breaking</a>
               </div>
-            </div>
-
-            <div className="twitter-embed">
-              <h3>Reuters</h3>
-              <div className="twitter-container">
-                <a
-                  className="twitter-timeline"
-                  href="https://twitter.com/Reuters"
-                  data-height="380"
-                  data-theme={darkMode ? "dark" : "light"}
-                  data-chrome="noheader nofooter noborders transparent"
-                >
-                  Tweets by Reuters
-                </a>
-              </div>
-            </div>
-
-            <div className="twitter-embed">
-              <h3>Bellingcat (OSINT)</h3>
-              <div className="twitter-container">
-                <a
-                  className="twitter-timeline"
-                  href="https://twitter.com/bellingcat"
-                  data-height="380"
-                  data-theme={darkMode ? "dark" : "light"}
-                  data-chrome="noheader nofooter noborders transparent"
-                >
-                  Tweets by bellingcat
-                </a>
+              <div className="embed-item">
+                <a className="twitter-timeline" href="https://twitter.com/Reuters" data-height="320" data-theme="dark">Reuters</a>
               </div>
             </div>
           </section>
 
-          {/* Weather & Alert */}
-          <section className="status-section">
-            <div className="weather-box">
-              <h3>Reference Weather</h3>
-              <p>
-                {weather
-                  ? `Temp: ${weather.current_weather.temperature} °C • Wind: ${weather.current_weather.windspeed} km/h`
-                  : '—'}
-              </p>
+          <section className="status-panel">
+            <div className="weather">
+              Weather Ref: {weather ? `${weather.current_weather.temperature}°C / ${weather.current_weather.windspeed} km/h` : '—'}
             </div>
-
-            {alertMessage && (
-              <div className="alert-box">
-                <strong>ALERT</strong>
-                <p>{alertMessage}</p>
-              </div>
-            )}
           </section>
         </aside>
       </div>
 
-      {/* Global styles */}
       <style jsx global>{`
-        :root {
-          --bg: #f8f9fc;
-          --text: #1a1f36;
-          --sidebar-bg: #ffffff;
-          --card-bg: #ffffff;
-          --border: #e2e8f0;
-          --accent: #3b82f6;
-        }
-        .dark-theme {
-          --bg: #0f172a;
-          --text: #e2e8f0;
-          --sidebar-bg: #1e293b;
-          --card-bg: #1e293b;
-          --border: #334155;
-          --accent: #60a5fa;
-        }
-        .app-container {
+        .app.dark {
+          background: #0a0f1a;
+          color: #d1d5db;
           height: 100vh;
-          display: flex;
-          flex-direction: column;
-          background: var(--bg);
-          color: var(--text);
-          font-family: system-ui, -apple-system, sans-serif;
+          font-family: 'Segoe UI', system-ui, sans-serif;
         }
-        .app-header {
-          padding: 12px 20px;
-          background: var(--sidebar-bg);
-          border-bottom: 1px solid var(--border);
+        .header {
+          background: #111827;
+          padding: 1rem 2rem;
           display: flex;
           justify-content: space-between;
           align-items: center;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+          border-bottom: 1px solid #1f2937;
         }
-        .app-header h1 {
-          margin: 0;
-          font-size: 1.6rem;
+        .title {
+          font-size: 1.5rem;
+          font-weight: 700;
+          letter-spacing: 0.05em;
+          color: #60a5fa;
+        }
+        .status-bar {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
+        .threat-gauge {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
           font-weight: 600;
         }
-        .mode-toggle {
-          background: var(--border);
-          border: none;
-          padding: 8px 16px;
+        .gauge-bar {
+          padding: 0.4rem 1rem;
           border-radius: 999px;
-          cursor: pointer;
-          font-weight: 500;
-          transition: all 0.2s;
-        }
-        .mode-toggle:hover {
-          background: var(--accent);
+          font-size: 0.9rem;
           color: white;
+          font-weight: bold;
         }
-        .main-layout {
-          flex: 1;
+        .layout {
           display: flex;
-          overflow: hidden;
+          height: calc(100vh - 60px);
         }
-        .map-section {
+        .map-container {
           flex: 1;
         }
         .sidebar {
-          width: 360px;
-          background: var(--sidebar-bg);
-          border-left: 1px solid var(--border);
+          width: 380px;
+          background: #111827;
+          border-left: 1px solid #1f2937;
           overflow-y: auto;
-          padding: 20px;
-          box-sizing: border-box;
+          padding: 1.5rem;
         }
-        .card-section {
-          margin-bottom: 32px;
+        .panel {
+          margin-bottom: 2rem;
         }
-        .card-section h2 {
-          font-size: 1.3rem;
-          margin: 0 0 14px;
-          color: var(--text);
+        .panel h2 {
+          font-size: 1.2rem;
+          margin-bottom: 1rem;
+          color: #93c5fd;
+          border-bottom: 1px solid #1f2937;
+          padding-bottom: 0.5rem;
         }
-        .news-card {
-          background: var(--card-bg);
-          padding: 14px;
-          border-radius: 10px;
-          border: 1px solid var(--border);
-          margin-bottom: 14px;
-          transition: transform 0.15s;
+        .feed-item {
+          background: #1f2937;
+          padding: 1rem;
+          border-radius: 8px;
+          margin-bottom: 1rem;
+          border-left: 4px solid #3b82f6;
         }
-        .news-card:hover {
-          transform: translateY(-2px);
+        .item-title {
+          font-weight: 600;
+          margin-bottom: 0.5rem;
         }
-        .news-card h3 {
-          margin: 0 0 8px;
-          font-size: 1.1rem;
-          line-height: 1.4;
-        }
-        .news-desc {
-          margin: 0;
-          font-size: 0.94rem;
-          color: #64748b;
-        }
-        .dark-theme .news-desc {
-          color: #94a3b8;
+        .item-desc {
+          font-size: 0.9rem;
+          color: #9ca3af;
         }
         .threat-list li {
-          padding: 10px 0;
-          border-bottom: 1px solid var(--border);
-          font-size: 0.97rem;
-        }
-        .twitter-embed {
-          margin-bottom: 28px;
-        }
-        .twitter-embed h3 {
-          margin: 0 0 10px;
-          font-size: 1.08rem;
-        }
-        .twitter-container {
-          height: 380px;
-          border: 1px solid var(--border);
-          border-radius: 10px;
-          overflow: hidden;
-          background: var(--card-bg);
-        }
-        .status-section {
-          margin-top: 24px;
-          padding-top: 20px;
-          border-top: 1px solid var(--border);
-        }
-        .weather-box, .alert-box {
-          background: var(--card-bg);
-          padding: 16px;
-          border-radius: 10px;
-          border: 1px solid var(--border);
-          margin-bottom: 14px;
-        }
-        .alert-box {
-          background: #fee2e2;
-          border-color: #ef4444;
-          color: #991b1b;
-        }
-        .dark-theme .alert-box {
-          background: #7f1d1d;
-          color: #fecaca;
-          border-color: #f87171;
-        }
-        .loading-overlay {
-          position: absolute;
-          inset: 0;
-          background: rgba(255,255,255,0.85);
+          background: #1f2937;
+          padding: 0.8rem;
+          border-radius: 6px;
+          margin-bottom: 0.6rem;
           display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          z-index: 10;
-          backdrop-filter: blur(4px);
+          justify-content: space-between;
         }
-        .dark-theme .loading-overlay {
-          background: rgba(15,23,42,0.85);
+        .threat-name {
+          color: #f87171;
+          font-weight: 600;
         }
-        .spinner {
-          width: 48px;
-          height: 48px;
-          border: 5px solid #e2e8f0;
-          border-top: 5px solid var(--accent);
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-          margin-bottom: 16px;
+        .embed-grid {
+          display: grid;
+          gap: 1rem;
         }
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        .error-message {
-          background: #fee2e2;
-          color: #991b1b;
-          padding: 14px;
+        .embed-item {
+          height: 320px;
+          border: 1px solid #1f2937;
           border-radius: 8px;
-          margin-bottom: 20px;
-          font-weight: 500;
+          overflow: hidden;
         }
-        .dark-theme .error-message {
+        .status-panel {
+          background: #1f2937;
+          padding: 1rem;
+          border-radius: 8px;
+        }
+        .alert-banner {
+          background: #991b1b;
+          color: white;
+          padding: 1rem;
+          border-radius: 8px;
+          margin-bottom: 1.5rem;
+          text-align: center;
+          font-weight: bold;
+          animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+          0% { opacity: 1; }
+          50% { opacity: 0.7; }
+          100% { opacity: 1; }
+        }
+        .loading, .error-banner {
+          text-align: center;
+          padding: 2rem 0;
+          color: #9ca3af;
+        }
+        .error-banner {
           background: #7f1d1d;
           color: #fecaca;
-        }
-        .empty-state {
-          color: #64748b;
-          font-style: italic;
-          text-align: center;
-          padding: 20px 0;
+          border-radius: 8px;
         }
       `}</style>
     </div>
