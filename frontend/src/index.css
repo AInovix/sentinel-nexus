@@ -1,0 +1,14 @@
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #0a0c10;
+  color: #e6edf3;
+}
+
+code {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Add more CSS from the HTML file, adapted for React */
