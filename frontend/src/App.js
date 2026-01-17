@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import jsVectorMap from 'jsvectormap';
-import 'jsvectormap/dist/jsvectormap.min.css';
+import 'jsvectormap/dist/css/jsvectormap.css'; // Correct CSS import path
 import 'jsvectormap/dist/maps/world.js';
 
 const DEFCON_INFO = {
@@ -16,21 +16,21 @@ const COUNTRY_COLORS = {
   UA: '#f8514966', IL: '#f8514966', KP: '#f8514966', TW: '#db6d2866',
   VE: '#f8514966', PS: '#f8514966', SY: '#f8514966', SD: '#db6d2866',
   ER: '#db6d2866', AF: '#f8514966', LB: '#f8514966', YE: '#f8514966',
-  // Add more as needed
+  // Extend as needed
 };
 
 const CITIES = [
-  { name: 'CARACAS', country: 'Venezuela', coords: [10.48, -66.87], type: 'critical', population: '2.9M', intel: 'Maduro ousted and on trial in US; regime change ongoing.' },
-  { name: 'TEHRAN', country: 'Iran', coords: [35.69, 51.39], type: 'critical', population: '9.3M', intel: 'Tensions with US and Israel high; potential strikes.' },
-  { name: 'KYIV', country: 'Ukraine', coords: [50.45, 30.52], type: 'critical', population: '2.9M', intel: 'Ongoing war with Russia; hybrid threats increasing.' },
-  { name: 'GAZA', country: 'Palestine', coords: [31.5, 34.47], type: 'critical', population: '2.0M', intel: 'Renewed fighting possible; humanitarian crisis.' },
-  { name: 'DAMASCUS', country: 'Syria', coords: [33.51, 36.29], type: 'critical', population: '2.0M', intel: 'Fragile stability; risk of renewed conflict.' },
-  { name: 'KHARTOUM', country: 'Sudan', coords: [15.5, 32.56], type: 'elevated', population: '5.2M', intel: 'Civil war ongoing; humanitarian disaster.' },
-  { name: 'ASMARA', country: 'Eritrea', coords: [15.34, 38.93], type: 'elevated', population: '1.0M', intel: 'Tensions with Ethiopia; potential border conflict.' },
-  { name: 'TAIPEI', country: 'Taiwan', coords: [25.03, 121.57], type: 'elevated', population: '2.6M', intel: 'US-China tensions; potential invasion risks.' },
-  { name: 'BEIJING', country: 'China', coords: [39.90, 116.41], type: 'watch', population: '21.5M', intel: 'Great power competition with US.' },
-  { name: 'MOSCOW', country: 'Russia', coords: [55.76, 37.62], type: 'watch', population: '12.5M', intel: 'Hybrid warfare against NATO.' },
-  // Add the rest from your original HTML as needed
+  { name: 'CARACAS', country: 'Venezuela', coords: [10.48, -66.87], type: 'critical' },
+  { name: 'TEHRAN', country: 'Iran', coords: [35.69, 51.39], type: 'critical' },
+  { name: 'KYIV', country: 'Ukraine', coords: [50.45, 30.52], type: 'critical' },
+  { name: 'GAZA', country: 'Palestine', coords: [31.5, 34.47], type: 'critical' },
+  { name: 'DAMASCUS', country: 'Syria', coords: [33.51, 36.29], type: 'critical' },
+  { name: 'KHARTOUM', country: 'Sudan', coords: [15.5, 32.56], type: 'elevated' },
+  { name: 'ASMARA', country: 'Eritrea', coords: [15.34, 38.93], type: 'elevated' },
+  { name: 'TAIPEI', country: 'Taiwan', coords: [25.03, 121.57], type: 'elevated' },
+  { name: 'BEIJING', country: 'China', coords: [39.90, 116.41], type: 'watch' },
+  { name: 'MOSCOW', country: 'Russia', coords: [55.76, 37.62], type: 'watch' },
+  // Add more from your original list if needed
 ];
 
 function App() {
@@ -57,7 +57,7 @@ function App() {
         markers: CITIES.map(c => ({
           name: c.name,
           coords: c.coords,
-          style: { fill: DEFCON_INFO[defconLevel].color } // Dynamic color based on level
+          style: { fill: DEFCON_INFO[defconLevel].color }
         })),
         markerStyle: {
           initial: { r: 6, strokeWidth: 2, stroke: '#0d1117' },
@@ -68,7 +68,7 @@ function App() {
         }
       });
 
-      // Color countries
+      // Apply country colors
       Object.keys(COUNTRY_COLORS).forEach(code => {
         if (mapRef.current.regions[code]) {
           mapRef.current.regions[code].element.shape.setStyle('fill', COUNTRY_COLORS[code]);
@@ -76,7 +76,7 @@ function App() {
       });
     }
 
-    // Load fallback data (replace with real fetches when backend is ready)
+    // Load fallback data (real API would replace this)
     const loadData = () => {
       setNews([
         { time: '11:30', source: 'OSINT', text: 'Multiple indicators of elevated activity in Middle East' },
@@ -85,7 +85,6 @@ function App() {
         { time: '10:20', source: 'Stratfor', text: 'Iranian proxy forces repositioning in Yemen' }
       ]);
 
-      // Simple threat score calculation
       const score = 35 + Math.floor(Math.random() * 40);
       setThreatScore(score);
       const level = score >= 80 ? 1 : score >= 60 ? 2 : score >= 40 ? 3 : score >= 20 ? 4 : 5;
@@ -95,7 +94,7 @@ function App() {
     };
 
     loadData();
-    const interval = setInterval(loadData, 60000); // Refresh every minute
+    const interval = setInterval(loadData, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -181,11 +180,11 @@ function App() {
             </div>
           </article>
 
-          {/* Add more panels here (Polymarket, Markets, Commodities, etc.) as needed */}
+          {/* You can add more panels like Polymarket, Markets, etc. */}
         </div>
       </main>
 
-      {/* Full Pentagon-grade Styling */}
+      {/* Pentagon-grade Styling */}
       <style jsx global>{`
         :root {
           --bg-primary: #0a0c10;
@@ -204,17 +203,11 @@ function App() {
           --border-color: #30363d;
         }
 
-        * {
-          box-sizing: border-box;
-          margin: 0;
-          padding: 0;
-        }
-
         body {
           font-family: 'Inter', sans-serif;
           background: var(--bg-primary);
           color: var(--text-primary);
-          min-height: 100vh;
+          margin: 0;
         }
 
         .loading {
