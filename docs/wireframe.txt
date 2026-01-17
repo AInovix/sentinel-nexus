@@ -1,0 +1,3 @@
+Simple wireframe:
+- Left: Map (80% width)
+- Right: Sidebar (20% width) with news, threats, alerts.
