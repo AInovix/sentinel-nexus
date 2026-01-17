@@ -7,7 +7,6 @@ import 'leaflet/dist/leaflet.css';
 function App() {
   const [news, setNews] = useState([]);
   const [threats, setThreats] = useState([]);
-  const [xAlerts, setXAlerts] = useState([]);
   const [weather, setWeather] = useState(null);
   const [markers, setMarkers] = useState([]);
   const [alertMessage, setAlertMessage] = useState('');
@@ -17,18 +16,15 @@ function App() {
       const res = await axios.get('/api/dashboard');
       setNews(res.data.news || []);
       setThreats(res.data.threats || []);
-      setXAlerts(res.data.xAlerts || []);
       setWeather(res.data.weather);
 
-      // Simple markers from news (fake positions; optimize by memoizing)
       const newMarkers = res.data.news.map((item, i) => ({
-        position: [i * 10 % 90, i * 10 % 180], // Cycle positions for demo
+        position: [i * 10 % 90, i * 10 % 180],
         popup: item.title
       }));
       setMarkers(newMarkers);
 
-      // Simplified predictions: Keyword check for 'threat' or 'alert'
-      const highThreat = res.data.news.some(n => n.description && (n.description.includes('threat') || n.description.includes('alert')));
+      const highThreat = res.data.news.some(n => n.description && (n.description.toLowerCase().includes('threat') || n.description.toLowerCase().includes('alert')));
       if (highThreat) {
         setAlertMessage('High threat detected in news!');
         if (Notification.permission === 'granted') {
@@ -42,16 +38,26 @@ function App() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 600000); // 10 min for perf
+    const interval = setInterval(fetchData, 600000); // 10 min
     return () => clearInterval(interval);
   }, [fetchData]);
 
   useEffect(() => {
     if (!("Notification" in window)) return;
     Notification.requestPermission();
+
+    // Load X embed script dynamically (required for widget to work)
+    const script = document.createElement('script');
+    script.src = "https://platform.twitter.com/widgets.js";
+    script.async = true;
+    script.charset = "utf-8";
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
   }, []);
 
-  // Memoize markers to prevent map re-renders
   const memoizedMarkers = useMemo(() => markers, [markers]);
 
   return (
@@ -66,22 +72,43 @@ function App() {
           ))}
         </MapContainer>
       </div>
-      <div style={{ width: '300px', padding: '10px', overflowY: 'auto' }}>
-        <h2>News Feed</h2>
-        <ul>
-          {news.map((item, i) => <li key={i}>{item.title}</li>)}
+      <div style={{ width: '320px', padding: '10px', overflowY: 'auto', background: '#f8f9fa' }}>
+        <h2>News Feed (BBC World)</h2>
+        <ul style={{ listStyle: 'none', padding: 0 }}>
+          {news.map((item, i) => (
+            <li key={i} style={{ marginBottom: '10px', borderBottom: '1px solid #ddd', paddingBottom: '10px' }}>
+              <strong>{item.title}</strong>
+            </li>
+          ))}
         </ul>
-        <h2>Threats (Malware)</h2>
-        <ul>
-          {threats.map((t, i) => <li key={i}>{t.signature || 'Unknown'} - {t.first_seen}</li>)}
+
+        <h2>Threats (Malware Recent)</h2>
+        <ul style={{ listStyle: 'none', padding: 0 }}>
+          {threats.map((t, i) => (
+            <li key={i} style={{ marginBottom: '8px' }}>
+              {t.signature || 'Sample'} - {t.first_seen?.substring(0, 10) || 'N/A'}
+            </li>
+          ))}
         </ul>
-        <h2>X Alerts</h2>
-        <ul>
-          {xAlerts.map((alert, i) => <li key={i}>{alert.text}</li>)}
-        </ul>
-        <h2>Weather Alert</h2>
-        <p>{weather ? `Temp: ${weather.current_weather.temperature}°C` : 'Loading...'}</p>
-        {alertMessage && <p style={{ color: 'red' }}>{alertMessage}</p>}
+
+        <h2>X Real-Time Alerts</h2>
+        {/* Embedded X Timeline - BBC Breaking News example */}
+        <div style={{ height: '500px', overflow: 'hidden', border: '1px solid #ccc', borderRadius: '8px' }}>
+          <a 
+            className="twitter-timeline" 
+            href="https://twitter.com/BBCBreaking" 
+            data-height="500" 
+            data-theme="light" 
+            data-chrome="noheader nofooter noborders transparent"
+          >
+            Tweets by BBCBreaking
+          </a>
+        </div>
+
+        <h2>Weather (Equator Example)</h2>
+        <p>{weather ? `Temp: ${weather.current_weather.temperature}°C, Wind: ${weather.current_weather.windspeed} km/h` : 'Loading...'}</p>
+
+        {alertMessage && <p style={{ color: 'red', fontWeight: 'bold', marginTop: '15px' }}>{alertMessage}</p>}
       </div>
     </div>
   );
