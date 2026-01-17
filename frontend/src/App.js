@@ -1,306 +1,171 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { CesiumProvider } from 'resium';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 import axios from 'axios';
+import L from 'leaflet';
 
-import 'leaflet/dist/leaflet.css';
+const DEFCON_INFO = {
+  1: { name: 'COCKED PISTOL', desc: 'Maximum force readiness — Nuclear war imminent', color: '#f85149' },
+  2: { name: 'FAST PACE', desc: 'Armed Forces ready to deploy and engage in 6 hours', color: '#db6d28' },
+  3: { name: 'ROUND HOUSE', desc: 'Air Force ready to mobilize in 15 minutes', color: '#d29922' },
+  4: { name: 'DOUBLE TAKE', desc: 'Increased intelligence watch and strengthened security', color: '#58a6ff' },
+  5: { name: 'FADE OUT', desc: 'Lowest state of readiness — Normal peacetime', color: '#3fb950' }
+};
 
-// Leaflet icon fix with ESLint disable
-/* eslint-disable no-undef */
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-});
-/* eslint-enable no-undef */
+// Mock/real data from tools (replace with real fetches)
+const MOCK_POLYMARKET = [
+  { title: "US strikes Iran by June 30?", odds: 53, volume: "61k", weight: 15 },
+  // ... (add all from tool result)
+];
+
+const MOCK_MARKETS = {
+  sp500: { value: '6,944.47', change: 0.26, label: 'S&P 500' },
+  nasdaq: { value: '23,530.02', change: 0.25, label: 'NASDAQ' },
+  dow: { value: '49,442.44', change: 0.60, label: 'DOW' },
+  btc: { value: '$95,100.00', change: -1.00, label: 'BTC' }
+};
+
+const MOCK_COMMODITIES = {
+  gold: { value: '4,595.40', change: -0.61, label: 'Gold' },
+  oil: { value: '59.44', change: +0.42, label: 'Crude Oil' },
+  vix: { value: '15.84', change: -5.43, label: 'VIX' },
+  silver: { value: '88.537', change: -4.13, label: 'Silver' }
+};
+
+const MOCK_NEWS_WORLD = [
+  { time: 'Now', source: 'WEF', text: 'Geoeconomic confrontation, interstate conflict and extreme weather emerge as top risks...' },
+  // ... (add from web_search results)
+];
+
+const MOCK_NEWS_GOV = [
+  { time: 'Now', source: 'Faces & Voices', text: 'From federal budget negotiations to evolving public health guidelines...' },
+  // ... (add from results)
+];
+
+const MOCK_NEWS_TECH = [
+  { time: 'Now', source: 'Reuters', text: 'AI themes to watch in 2026: Big funding, but not yet full IPO boom...' },
+  // ... (add from results)
+];
+
+const MOCK_NEWS_INTEL = [
+  { time: '12:45', source: '@visegrad24', text: 'Idiocracy is one of the greatest documentaries ever made!' },
+  // ... (add all X posts from tool)
+];
+
+const CITIES = [
+  { name: 'CARACAS', country: 'Venezuela', coords: [10.48, -66.87], type: 'critical', population: '2.9M', intel: 'Maduro ousted and on trial in US; regime change ongoing.', polymarket: 'Stable transition: 45%' },
+  // ... (all from HTML)
+];
 
 function App() {
-  const [news, setNews] = useState([]);
-  const [threats, setThreats] = useState([]);
-  const [weather, setWeather] = useState(null);
-  const [markers, setMarkers] = useState([]);
-  const [alertMessage, setAlertMessage] = useState('');
-  const [threatLevel, setThreatLevel] = useState('LOW'); // LOW / MEDIUM / HIGH
-  const [error, setError] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const res = await axios.get('/api/dashboard');
-      const newsItems = res.data.news || [];
-      setNews(newsItems);
-      setThreats(res.data.threats || []);
-      setWeather(res.data.weather);
-
-      const newMarkers = newsItems.map(() => ({
-        position: [-60 + Math.random() * 140, -170 + Math.random() * 340],
-        popup: 'Active Event'
-      }));
-      setMarkers(newMarkers);
-
-      const threatKeywords = /threat|attack|missile|conflict|crisis|war|bomb|strike|invasion|cyber|breach/i;
-      const hasHighThreat = newsItems.some(item => threatKeywords.test(item.description || item.title || ''));
-      setThreatLevel(hasHighThreat ? 'HIGH' : newsItems.length > 5 ? 'MEDIUM' : 'LOW');
-      setAlertMessage(hasHighThreat ? 'ELEVATED THREAT LEVEL - IMMEDIATE REVIEW RECOMMENDED' : '');
-    } catch (err) {
-      setError('Real-time feeds unavailable. Using strategic overview mode.');
-      // Richer mock data for professional fallback
-      setNews([
-        { title: 'Unconfirmed missile activity in contested zone', description: 'Satellite imagery shows movement - high confidence source' },
-        { title: 'Cyber intrusion attempt on critical infrastructure', description: 'State actor suspected - ongoing containment' },
-        { title: 'Border escalation reported', description: 'Troop buildup observed - diplomatic channels engaged' }
-      ]);
-      setThreats([
-        { signature: 'RANSOMWARE-VAR-2026A', first_seen: '2026-01-16' },
-        { signature: 'APT-41 Campaign Spike', first_seen: '2026-01-15' }
-      ]);
-      setWeather({ current_weather: { temperature: 18, windspeed: 25 } });
-      setMarkers([
-        { position: [35, 45], popup: 'Hot Zone Alpha' },
-        { position: [-10, 120], popup: 'Emerging Incident' }
-      ]);
-      setThreatLevel('MEDIUM');
-      setAlertMessage('Fallback mode active - limited intelligence available');
-    } finally {
-      setIsLoading(false);
+  const [data, setData] = useState({
+    polymarket: MOCK_POLYMARKET,
+    markets: MOCK_MARKETS,
+    commodities: MOCK_COMMODITIES,
+    news: {
+      world: MOCK_NEWS_WORLD,
+      gov: MOCK_NEWS_GOV,
+      tech: MOCK_NEWS_TECH,
+      intel: MOCK_NEWS_INTEL
     }
-  }, []);
+  });
+  const [defconLevel, setDefconLevel] = useState(3);
+  const [threatScore, setThreatScore] = useState(50);
+  const [isLoading, setIsLoading] = useState(true);
+  const [ships, setShips] = useState([]);
+  const [aircraft, setAircraft] = useState([]);
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 300000); // 5 min in production feel
-    return () => clearInterval(interval);
-  }, [fetchData]);
-
-  useEffect(() => {
-    if ("Notification" in window) Notification.requestPermission();
-    const script = document.createElement('script');
-    script.src = "https://platform.twitter.com/widgets.js";
-    script.async = true;
-    document.body.appendChild(script);
-    return () => document.body.removeChild(script);
+    setIsLoading(false); // For demo; in real, fetch data
   }, []);
 
-  const memoizedMarkers = useMemo(() => markers, [markers]);
+  const calculateDefcon = useMemo(() => {
+    let ts = 0;
+    data.polymarket.forEach(p => ts += (p.odds / 100) * p.weight);
+    setThreatScore(ts);
+    return ts >= 80 ? 1 : ts >= 60 ? 2 : ts >= 40 ? 3 : ts >= 20 ? 4 : 5;
+  }, [data.polymarket]);
 
-  const threatColor = threatLevel === 'HIGH' ? '#ef4444' : threatLevel === 'MEDIUM' ? '#f59e0b' : '#10b981';
+  useEffect(() => {
+    setDefconLevel(calculateDefcon);
+  }, [calculateDefcon]);
 
   return (
-    <div className="app dark">
-      <header className="header">
-        <div className="title">SENTINEL NEXUS</div>
-        <div className="status-bar">
-          <div className="threat-gauge">
-            <span>THREAT LEVEL:</span>
-            <div className="gauge-bar" style={{ background: threatColor }}>
-              {threatLevel}
-            </div>
+    <DndProvider backend={HTML5Backend}>
+      <div className="app-container">
+        <header className="header">
+          <div className="logo">PULSE</div>
+          <div className="status">
+            <div className="status-dot"></div>
+            OPERATIONAL
           </div>
-        </div>
-      </header>
-
-      <div className="layout">
-        <div className="map-container">
-          <MapContainer center={[20, 0]} zoom={2.5} style={{ height: '100%' }}>
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-            {memoizedMarkers.map((m, i) => (
-              <Marker key={i} position={m.position}>
-                <Popup>{m.popup}</Popup>
-              </Marker>
+          <div className="header-time"> {new Date().toLocaleTimeString('en-US', { hour12: false })} UTC </div>
+        </header>
+        <div className="defcon-bar">
+          <span className="defcon-label">DEFCON STATUS</span>
+          <div className="defcon-levels">
+            {[1,2,3,4,5].map(l => (
+              <div className={`defcon-level defcon-${l} ${defconLevel === l ? 'active' : ''}`} key={l}>
+                {l}
+              </div>
             ))}
-          </MapContainer>
+          </div>
+          <div className="defcon-info">
+            <div className="defcon-name" style={{ color: DEFCON_INFO[defconLevel].color }}>
+              {DEFCON_INFO[defconLevel].name}
+            </div>
+            <div className="defcon-desc">{DEFCON_INFO[defconLevel].desc}</div>
+          </div>
+          <div className="threat-score">THREAT INDEX: {threatScore.toFixed(1)}</div>
         </div>
-
-        <aside className="sidebar">
-          {isLoading && <div className="loading">Initializing situational awareness...</div>}
-          {error && <div className="error-banner">{error}</div>}
-
-          {alertMessage && (
-            <div className="alert-banner" style={{ background: threatColor }}>
-              <strong>PRIORITY ALERT</strong>
-              <p>{alertMessage}</p>
+        <main className="main">
+          {isLoading ? (
+            <div className="loading">
+              <div className="loading-logo">PULSE</div>
+              <div className="loading-bar"><div className="loading-fill"></div></div>
+            </div>
+          ) : (
+            <div className="grid">
+              {/* Panels */}
+              <article className="panel panel--wide">
+                <header className="panel-header">
+                  <div className="panel-title">Global Situation Map</div>
+                </header>
+                <div className="panel-content">
+                  <CesiumProvider>
+                    <MapContainer center={[0, 0]} zoom={2} style={{ height: '500px' }}>
+                      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                      {markers.map((m, i) => (
+                        <Marker key={i} position={m.position}>
+                          <Popup>{m.popup}</Popup>
+                        </Marker>
+                      ))}
+                    </MapContainer>
+                  </CesiumProvider>
+                </div>
+              </article>
+              {/* Add more panels like in HTML, using data */}
+              {/* Example: Polymarket */}
+              <article className="panel">
+                <header className="panel-header">
+                  <div className="panel-title">Polymarket Geopolitical Odds</div>
+                </header>
+                <div className="panel-content">
+                  {data.polymarket.map(p => (
+                    <div key={p.title}>
+                      {p.title} - {p.odds}% ({p.volume})
+                    </div>
+                  ))}
+                </div>
+              </article>
+              {/* Similar for markets, commodities, news categories */}
             </div>
           )}
-
-          <section className="panel">
-            <h2>Global News Feed</h2>
-            <div className="feed">
-              {news.map((item, i) => (
-                <div key={i} className="feed-item">
-                  <div className="item-title">{item.title}</div>
-                  <div className="item-desc">{item.description?.substring(0, 140) || ''}...</div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="panel">
-            <h2>Active Threats</h2>
-            <ul className="threat-list">
-              {threats.map((t, i) => (
-                <li key={i}>
-                  <span className="threat-name">{t.signature || 'Unknown'}</span>
-                  <span className="threat-date">{t.first_seen || 'Recent'}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="panel">
-            <h2>OSINT Feeds</h2>
-            <div className="embed-grid">
-              <div className="embed-item">
-                <a className="twitter-timeline" href="https://twitter.com/BBCBreaking" data-height="320" data-theme="dark">BBC Breaking</a>
-              </div>
-              <div className="embed-item">
-                <a className="twitter-timeline" href="https://twitter.com/Reuters" data-height="320" data-theme="dark">Reuters</a>
-              </div>
-            </div>
-          </section>
-
-          <section className="status-panel">
-            <div className="weather">
-              Weather Ref: {weather ? `${weather.current_weather.temperature}°C / ${weather.current_weather.windspeed} km/h` : '—'}
-            </div>
-          </section>
-        </aside>
+        </main>
       </div>
-
-      <style jsx global>{`
-        .app.dark {
-          background: #0a0f1a;
-          color: #d1d5db;
-          height: 100vh;
-          font-family: 'Segoe UI', system-ui, sans-serif;
-        }
-        .header {
-          background: #111827;
-          padding: 1rem 2rem;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border-bottom: 1px solid #1f2937;
-        }
-        .title {
-          font-size: 1.5rem;
-          font-weight: 700;
-          letter-spacing: 0.05em;
-          color: #60a5fa;
-        }
-        .status-bar {
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-        }
-        .threat-gauge {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          font-weight: 600;
-        }
-        .gauge-bar {
-          padding: 0.4rem 1rem;
-          border-radius: 999px;
-          font-size: 0.9rem;
-          color: white;
-          font-weight: bold;
-        }
-        .layout {
-          display: flex;
-          height: calc(100vh - 60px);
-        }
-        .map-container {
-          flex: 1;
-        }
-        .sidebar {
-          width: 380px;
-          background: #111827;
-          border-left: 1px solid #1f2937;
-          overflow-y: auto;
-          padding: 1.5rem;
-        }
-        .panel {
-          margin-bottom: 2rem;
-        }
-        .panel h2 {
-          font-size: 1.2rem;
-          margin-bottom: 1rem;
-          color: #93c5fd;
-          border-bottom: 1px solid #1f2937;
-          padding-bottom: 0.5rem;
-        }
-        .feed-item {
-          background: #1f2937;
-          padding: 1rem;
-          border-radius: 8px;
-          margin-bottom: 1rem;
-          border-left: 4px solid #3b82f6;
-        }
-        .item-title {
-          font-weight: 600;
-          margin-bottom: 0.5rem;
-        }
-        .item-desc {
-          font-size: 0.9rem;
-          color: #9ca3af;
-        }
-        .threat-list li {
-          background: #1f2937;
-          padding: 0.8rem;
-          border-radius: 6px;
-          margin-bottom: 0.6rem;
-          display: flex;
-          justify-content: space-between;
-        }
-        .threat-name {
-          color: #f87171;
-          font-weight: 600;
-        }
-        .embed-grid {
-          display: grid;
-          gap: 1rem;
-        }
-        .embed-item {
-          height: 320px;
-          border: 1px solid #1f2937;
-          border-radius: 8px;
-          overflow: hidden;
-        }
-        .status-panel {
-          background: #1f2937;
-          padding: 1rem;
-          border-radius: 8px;
-        }
-        .alert-banner {
-          background: #991b1b;
-          color: white;
-          padding: 1rem;
-          border-radius: 8px;
-          margin-bottom: 1.5rem;
-          text-align: center;
-          font-weight: bold;
-          animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-          0% { opacity: 1; }
-          50% { opacity: 0.7; }
-          100% { opacity: 1; }
-        }
-        .loading, .error-banner {
-          text-align: center;
-          padding: 2rem 0;
-          color: #9ca3af;
-        }
-        .error-banner {
-          background: #7f1d1d;
-          color: #fecaca;
-          border-radius: 8px;
-        }
-      `}</style>
-    </div>
+    </DndProvider>
   );
 }
 
