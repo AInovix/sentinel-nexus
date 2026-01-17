@@ -1,12 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Viewer, Entity, PolygonGraphics, PointGraphics, LabelGraphics } from 'resium';
 import * as Cesium from 'cesium';
 import axios from 'axios';
 
-import 'leaflet/dist/leaflet.css'; // Keep for fallback if needed
-
-// Set Cesium Ion token (get free from https://cesium.com/ion/signup then add to Netlify env vars as REACT_APP_CESIUM_ION_TOKEN)
-Cesium.Ion.defaultAccessToken = process.env.REACT_APP_CESIUM_ION_TOKEN || 'your_token_here_if_not_using_env';
+// Set Cesium Ion token (get free from https://cesium.com/ion/signup)
+// Add to Netlify env vars as REACT_APP_CESIUM_ION_TOKEN
+Cesium.Ion.defaultAccessToken = process.env.REACT_APP_CESIUM_ION_TOKEN || '';
 
 const DEFCON_INFO = {
   1: { name: 'COCKED PISTOL', desc: 'Maximum readiness – nuclear war imminent', color: '#f85149' },
@@ -30,7 +29,7 @@ function App() {
     setError(null);
 
     try {
-      // REPLACE WITH YOUR RENDER BACKEND URL AFTER DEPLOYING
+      // REPLACE WITH YOUR RENDER BACKEND URL
       const res = await axios.get('https://your-backend-name.onrender.com/api/dashboard');
       const newsItems = res.data.news || [];
       setNews(newsItems);
@@ -42,10 +41,9 @@ function App() {
       );
       const level = hasHighThreat ? 'HIGH' : newsItems.length > 5 ? 'MEDIUM' : 'LOW';
       setThreatLevel(level);
-      setAlertMessage(level === 'HIGH' ? 'ELEVATED THREAT LEVEL – IMMEDIATE REVIEW REQUIRED' : '');
+      setAlertMessage(level === 'HIGH' ? 'ELEVATED THREAT LEVEL – IMMEDIATE REVIEW REQUIRED' : level === 'MEDIUM' ? 'WATCH CONDITION – MONITORING INTENSIFIED' : '');
     } catch (err) {
       setError('Live feeds offline – strategic fallback active');
-      // Rich fallback data
       setNews([
         { title: 'Unconfirmed missile activity detected', description: 'Satellite confirmation pending – high confidence source' },
         { title: 'Cyber intrusion attempt on critical infrastructure', description: 'State actor suspected – ongoing containment' },
@@ -65,7 +63,7 @@ function App() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 300000); // 5 min
+    const interval = setInterval(fetchData, 300000);
     return () => clearInterval(interval);
   }, []);
 
@@ -78,15 +76,16 @@ function App() {
     return () => document.body.removeChild(script);
   }, []);
 
+  const threatColor = threatLevel === 'HIGH' ? Cesium.Color.RED.withAlpha(0.35) : 
+                     threatLevel === 'MEDIUM' ? Cesium.Color.ORANGE.withAlpha(0.3) : 
+                     Cesium.Color.GREEN.withAlpha(0.2);
+
   // Tactical red zones (polygons on globe)
   const redZones = [
     { name: 'Middle East Hotspot', positions: [30, 40, 35, 50, 25, 55, 20, 45, 30, 40] },
-    { name: 'Eastern Europe Tension Zone', positions: [48, 25, 55, 35, 50, 40, 45, 30, 48, 25] },
+    { name: 'Eastern Europe Tension', positions: [48, 25, 55, 35, 50, 40, 45, 30, 48, 25] },
+    { name: 'South China Sea', positions: [10, 110, 20, 120, 5, 130, 0, 115, 10, 110] }
   ];
-
-  const threatColor = threatLevel === 'HIGH' ? Cesium.Color.RED.withAlpha(0.3) : 
-                     threatLevel === 'MEDIUM' ? Cesium.Color.ORANGE.withAlpha(0.25) : 
-                     Cesium.Color.GREEN.withAlpha(0.15);
 
   return (
     <div className="app dark">
@@ -152,7 +151,7 @@ function App() {
               </Entity>
             ))}
 
-            {/* Markers */}
+            {/* Example markers */}
             <Entity position={Cesium.Cartesian3.fromDegrees(35, 45)}>
               <PointGraphics pixelSize={12} color={Cesium.Color.RED} />
               <LabelGraphics text="Hot Zone Alpha" font="14px sans-serif" fillColor={Cesium.Color.WHITE} />
@@ -224,7 +223,6 @@ function App() {
         </aside>
       </div>
 
-      {/* Styling */}
       <style jsx global>{`
         .app.dark { background: #0a0c10; color: #e6edf3; height: 100vh; font-family: 'Inter', sans-serif; overflow: hidden; }
         .header { background: #111827; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1f2937; z-index: 100; position: relative; }
