@@ -14,39 +14,57 @@ function App() {
   const fetchData = useCallback(async () => {
     try {
       const res = await axios.get('/api/dashboard');
-      setNews(res.data.news || []);
+      const newsItems = res.data.news || [];
+      setNews(newsItems);
       setThreats(res.data.threats || []);
       setWeather(res.data.weather);
 
-      const newMarkers = res.data.news.map((item, i) => ({
-        position: [i * 10 % 90, i * 10 % 180],
+      // Fake markers distributed roughly across the globe
+      const newMarkers = newsItems.map((item, i) => ({
+        position: [
+          (Math.sin(i * 0.7) * 80) + (Math.random() * 10 - 5),
+          (Math.cos(i * 0.9) * 170) + (Math.random() * 20 - 10)
+        ],
         popup: item.title
       }));
       setMarkers(newMarkers);
 
-      const highThreat = res.data.news.some(n => n.description && (n.description.toLowerCase().includes('threat') || n.description.toLowerCase().includes('alert')));
-      if (highThreat) {
-        setAlertMessage('High threat detected in news!');
+      // Very simple keyword-based alert
+      const hasThreatKeyword = newsItems.some(item =>
+        item.description?.toLowerCase().includes('threat') ||
+        item.description?.toLowerCase().includes('attack') ||
+        item.description?.toLowerCase().includes('missile') ||
+        item.description?.toLowerCase().includes('conflict') ||
+        item.description?.toLowerCase().includes('crisis')
+      );
+
+      if (hasThreatKeyword) {
+        setAlertMessage('Potential high-threat item detected in global news');
         if (Notification.permission === 'granted') {
-          new Notification('Sentinel Alert', { body: 'High threat in news!' });
+          new Notification('Sentinel Nexus Alert', {
+            body: 'Keywords indicating possible threat found in news feed'
+          });
         }
+      } else {
+        setAlertMessage('');
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Dashboard fetch failed:', error);
     }
   }, []);
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 600000); // 10 min
+    const interval = setInterval(fetchData, 600000); // 10 minutes
     return () => clearInterval(interval);
   }, [fetchData]);
 
   useEffect(() => {
+    // Request notification permission
     if (!("Notification" in window)) return;
     Notification.requestPermission();
 
-    // Load X embed script dynamically (required for widget to work)
+    // Load Twitter/X widgets script once
     const script = document.createElement('script');
     script.src = "https://platform.twitter.com/widgets.js";
     script.async = true;
@@ -54,17 +72,27 @@ function App() {
     document.body.appendChild(script);
 
     return () => {
-      document.body.removeChild(script);
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
     };
   }, []);
 
   const memoizedMarkers = useMemo(() => markers, [markers]);
 
   return (
-    <div style={{ display: 'flex', height: '100vh' }}>
-      <div style={{ flex: 1 }}>
-        <MapContainer center={[0, 0]} zoom={2} style={{ height: '100%' }}>
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+    <div style={{ display: 'flex', height: '100vh', fontFamily: 'system-ui, sans-serif' }}>
+      {/* Map takes most of the screen */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <MapContainer
+          center={[20, 0]}
+          zoom={2}
+          style={{ height: '100%', width: '100%' }}
+        >
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          />
           {memoizedMarkers.map((m, i) => (
             <Marker key={i} position={m.position}>
               <Popup>{m.popup}</Popup>
@@ -72,43 +100,128 @@ function App() {
           ))}
         </MapContainer>
       </div>
-      <div style={{ width: '320px', padding: '10px', overflowY: 'auto', background: '#f8f9fa' }}>
-        <h2>News Feed (BBC World)</h2>
-        <ul style={{ listStyle: 'none', padding: 0 }}>
-          {news.map((item, i) => (
-            <li key={i} style={{ marginBottom: '10px', borderBottom: '1px solid #ddd', paddingBottom: '10px' }}>
-              <strong>{item.title}</strong>
-            </li>
-          ))}
-        </ul>
 
-        <h2>Threats (Malware Recent)</h2>
-        <ul style={{ listStyle: 'none', padding: 0 }}>
-          {threats.map((t, i) => (
-            <li key={i} style={{ marginBottom: '8px' }}>
-              {t.signature || 'Sample'} - {t.first_seen?.substring(0, 10) || 'N/A'}
-            </li>
-          ))}
-        </ul>
+      {/* Sidebar */}
+      <div
+        style={{
+          width: '340px',
+          background: '#f9fbfd',
+          borderLeft: '1px solid #d1d9e0',
+          padding: '16px',
+          overflowY: 'auto',
+          boxSizing: 'border-box'
+        }}
+      >
+        <h2 style={{ marginTop: 0, fontSize: '1.4rem' }}>Sentinel Nexus</h2>
 
-        <h2>X Real-Time Alerts</h2>
-        {/* Embedded X Timeline - BBC Breaking News example */}
-        <div style={{ height: '500px', overflow: 'hidden', border: '1px solid #ccc', borderRadius: '8px' }}>
-          <a 
-            className="twitter-timeline" 
-            href="https://twitter.com/BBCBreaking" 
-            data-height="500" 
-            data-theme="light" 
-            data-chrome="noheader nofooter noborders transparent"
-          >
-            Tweets by BBCBreaking
-          </a>
-        </div>
+        {/* News */}
+        <section style={{ marginBottom: '24px' }}>
+          <h3 style={{ fontSize: '1.1rem', marginBottom: '8px' }}>BBC World News</h3>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {news.slice(0, 8).map((item, i) => (
+              <li
+                key={i}
+                style={{
+                  marginBottom: '12px',
+                  paddingBottom: '12px',
+                  borderBottom: '1px solid #eee'
+                }}
+              >
+                <strong style={{ lineHeight: 1.4 }}>{item.title}</strong>
+              </li>
+            ))}
+          </ul>
+        </section>
 
-        <h2>Weather (Equator Example)</h2>
-        <p>{weather ? `Temp: ${weather.current_weather.temperature}°C, Wind: ${weather.current_weather.windspeed} km/h` : 'Loading...'}</p>
+        {/* Threats */}
+        <section style={{ marginBottom: '24px' }}>
+          <h3 style={{ fontSize: '1.1rem', marginBottom: '8px' }}>Recent Malware Samples</h3>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {threats.slice(0, 6).map((t, i) => (
+              <li
+                key={i}
+                style={{ marginBottom: '8px', fontSize: '0.95rem' }}
+              >
+                {t.signature || 'Sample'} • {t.first_seen?.substring(0, 10) || '—'}
+              </li>
+            ))}
+          </ul>
+        </section>
 
-        {alertMessage && <p style={{ color: 'red', fontWeight: 'bold', marginTop: '15px' }}>{alertMessage}</p>}
+        {/* X Timelines */}
+        <section>
+          <h3 style={{ fontSize: '1.1rem', marginBottom: '12px' }}>Live X Feeds</h3>
+
+          {/* BBC Breaking */}
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ height: '420px', border: '1px solid #ddd', borderRadius: '6px', overflow: 'hidden' }}>
+              <a
+                className="twitter-timeline"
+                href="https://twitter.com/BBCBreaking"
+                data-height="420"
+                data-theme="light"
+                data-chrome="noheader nofooter noborders transparent"
+              >
+                Tweets by BBCBreaking
+              </a>
+            </div>
+          </div>
+
+          {/* Reuters */}
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ height: '420px', border: '1px solid #ddd', borderRadius: '6px', overflow: 'hidden' }}>
+              <a
+                className="twitter-timeline"
+                href="https://twitter.com/Reuters"
+                data-height="420"
+                data-theme="light"
+                data-chrome="noheader nofooter noborders transparent"
+              >
+                Tweets by Reuters
+              </a>
+            </div>
+          </div>
+
+          {/* Bellingcat (OSINT) */}
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ height: '420px', border: '1px solid #ddd', borderRadius: '6px', overflow: 'hidden' }}>
+              <a
+                className="twitter-timeline"
+                href="https://twitter.com/bellingcat"
+                data-height="420"
+                data-theme="light"
+                data-chrome="noheader nofooter noborders transparent"
+              >
+                Tweets by bellingcat
+              </a>
+            </div>
+          </div>
+
+          {/* Optional: add more by copying the pattern above */}
+        </section>
+
+        {/* Weather & Alert */}
+        <section style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #ddd' }}>
+          <h3 style={{ fontSize: '1.1rem', marginBottom: '8px' }}>Equator Reference Weather</h3>
+          <p style={{ margin: '0 0 12px 0' }}>
+            {weather
+              ? `Temperature: ${weather.current_weather.temperature} °C   •   Wind: ${weather.current_weather.windspeed} km/h`
+              : 'Loading...'}
+          </p>
+
+          {alertMessage && (
+            <p style={{
+              color: '#c53030',
+              fontWeight: 600,
+              background: '#fff5f5',
+              padding: '10px 12px',
+              borderRadius: '6px',
+              border: '1px solid #feb2b2'
+            }}>
+              {alertMessage}
+            </p>
+          )}
+        </section>
       </div>
     </div>
   );
