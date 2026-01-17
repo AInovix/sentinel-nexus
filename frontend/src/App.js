@@ -1,238 +1,532 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import axios from 'axios';
+import React, { useState, useEffect, useRef } from 'react';
+import jsVectorMap from 'jsvectormap';
+import 'jsvectormap/dist/jsvectormap.min.css';
+import 'jsvectormap/dist/maps/world.js';
 
-import 'leaflet/dist/leaflet.css';
+const DEFCON_INFO = {
+  1: { name: 'COCKED PISTOL', desc: 'Maximum force readiness — Nuclear war imminent', color: '#f85149' },
+  2: { name: 'FAST PACE', desc: 'Armed Forces ready to deploy and engage in 6 hours', color: '#db6d28' },
+  3: { name: 'ROUND HOUSE', desc: 'Air Force ready to mobilize in 15 minutes', color: '#d29922' },
+  4: { name: 'DOUBLE TAKE', desc: 'Increased intelligence watch and strengthened security', color: '#58a6ff' },
+  5: { name: 'FADE OUT', desc: 'Lowest state of readiness — Normal peacetime', color: '#3fb950' }
+};
 
-// Leaflet default icon fix with ESLint disable
-/* eslint-disable no-undef */
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-});
-/* eslint-enable no-undef */
+const COUNTRY_COLORS = {
+  US: '#58a6ff66', RU: '#d2992266', CN: '#d2992266', IR: '#f8514966',
+  UA: '#f8514966', IL: '#f8514966', KP: '#f8514966', TW: '#db6d2866',
+  VE: '#f8514966', PS: '#f8514966', SY: '#f8514966', SD: '#db6d2866',
+  ER: '#db6d2866', AF: '#f8514966', LB: '#f8514966', YE: '#f8514966',
+  // Add more as needed
+};
+
+const CITIES = [
+  { name: 'CARACAS', country: 'Venezuela', coords: [10.48, -66.87], type: 'critical', population: '2.9M', intel: 'Maduro ousted and on trial in US; regime change ongoing.' },
+  { name: 'TEHRAN', country: 'Iran', coords: [35.69, 51.39], type: 'critical', population: '9.3M', intel: 'Tensions with US and Israel high; potential strikes.' },
+  { name: 'KYIV', country: 'Ukraine', coords: [50.45, 30.52], type: 'critical', population: '2.9M', intel: 'Ongoing war with Russia; hybrid threats increasing.' },
+  { name: 'GAZA', country: 'Palestine', coords: [31.5, 34.47], type: 'critical', population: '2.0M', intel: 'Renewed fighting possible; humanitarian crisis.' },
+  { name: 'DAMASCUS', country: 'Syria', coords: [33.51, 36.29], type: 'critical', population: '2.0M', intel: 'Fragile stability; risk of renewed conflict.' },
+  { name: 'KHARTOUM', country: 'Sudan', coords: [15.5, 32.56], type: 'elevated', population: '5.2M', intel: 'Civil war ongoing; humanitarian disaster.' },
+  { name: 'ASMARA', country: 'Eritrea', coords: [15.34, 38.93], type: 'elevated', population: '1.0M', intel: 'Tensions with Ethiopia; potential border conflict.' },
+  { name: 'TAIPEI', country: 'Taiwan', coords: [25.03, 121.57], type: 'elevated', population: '2.6M', intel: 'US-China tensions; potential invasion risks.' },
+  { name: 'BEIJING', country: 'China', coords: [39.90, 116.41], type: 'watch', population: '21.5M', intel: 'Great power competition with US.' },
+  { name: 'MOSCOW', country: 'Russia', coords: [55.76, 37.62], type: 'watch', population: '12.5M', intel: 'Hybrid warfare against NATO.' },
+  // Add the rest from your original HTML as needed
+];
 
 function App() {
+  const mapRef = useRef(null);
+  const [defconLevel, setDefconLevel] = useState(4);
+  const [threatScore, setThreatScore] = useState(35);
   const [news, setNews] = useState([]);
-  const [threats, setThreats] = useState([]);
-  const [weather, setWeather] = useState(null);
-  const [markers, setMarkers] = useState([]);
-  const [alertMessage, setAlertMessage] = useState('');
-  const [threatLevel, setThreatLevel] = useState('LOW');
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  useEffect(() => {
+    // Initialize jsVectorMap once
+    if (!mapRef.current) {
+      mapRef.current = new jsVectorMap({
+        selector: '#world-map',
+        map: 'world',
+        backgroundColor: 'transparent',
+        zoomOnScroll: true,
+        zoomButtons: false,
+        regionStyle: {
+          initial: { fill: '#1a2332', stroke: '#2d3a4d', strokeWidth: 0.4 },
+          hover: { fill: '#243040', cursor: 'pointer' }
+        },
+        markers: CITIES.map(c => ({
+          name: c.name,
+          coords: c.coords,
+          style: { fill: DEFCON_INFO[defconLevel].color } // Dynamic color based on level
+        })),
+        markerStyle: {
+          initial: { r: 6, strokeWidth: 2, stroke: '#0d1117' },
+          hover: { r: 8, strokeWidth: 3 }
+        },
+        labels: {
+          markers: { render: m => m.name }
+        }
+      });
 
-    try {
-      const res = await axios.get('/api/dashboard');
-      const newsItems = res.data.news || [];
-      setNews(newsItems);
-      setThreats(res.data.threats || []);
-      setWeather(res.data.weather);
-
-      const newMarkers = newsItems.map(() => ({
-        position: [-60 + Math.random() * 140, -170 + Math.random() * 340],
-        popup: 'Active Event'
-      }));
-      setMarkers(newMarkers);
-
-      const threatKeywords = /threat|attack|missile|conflict|crisis|war|bomb|strike|invasion|cyber|breach/i;
-      const hasHighThreat = newsItems.some(item => threatKeywords.test(item.description || item.title || ''));
-      const level = hasHighThreat ? 'HIGH' : newsItems.length > 5 ? 'MEDIUM' : 'LOW';
-      setThreatLevel(level);
-      setAlertMessage(level === 'HIGH' ? 'ELEVATED THREAT LEVEL – IMMEDIATE REVIEW RECOMMENDED' : '');
-    } catch (err) {
-      setError('Real-time feeds unavailable. Strategic overview mode active.');
-      // Rich fallback
-      setNews([
-        { title: 'Unconfirmed missile activity detected in contested region', description: 'Satellite confirmation pending – high confidence source' },
-        { title: 'Cyber intrusion attempt on national infrastructure', description: 'State-sponsored actor suspected – containment in progress' },
-        { title: 'Border escalation with troop buildup observed', description: 'Diplomatic channels activated' }
-      ]);
-      setThreats([
-        { signature: 'RANSOMWARE-VAR-2026A', first_seen: '2026-01-16' },
-        { signature: 'APT-41 Campaign Spike', first_seen: '2026-01-15' }
-      ]);
-      setWeather({ current_weather: { temperature: 18, windspeed: 25 } });
-      setMarkers([
-        { position: [35, 45], popup: 'Hot Zone Alpha' },
-        { position: [-10, 120], popup: 'Emerging Incident' }
-      ]);
-      setThreatLevel('MEDIUM');
-      setAlertMessage('Fallback mode – limited intelligence');
-    } finally {
-      setIsLoading(false);
+      // Color countries
+      Object.keys(COUNTRY_COLORS).forEach(code => {
+        if (mapRef.current.regions[code]) {
+          mapRef.current.regions[code].element.shape.setStyle('fill', COUNTRY_COLORS[code]);
+        }
+      });
     }
-  }, []);
 
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 300000); // 5 minutes
-    return () => clearInterval(interval);
-  }, [fetchData]);
+    // Load fallback data (replace with real fetches when backend is ready)
+    const loadData = () => {
+      setNews([
+        { time: '11:30', source: 'OSINT', text: 'Multiple indicators of elevated activity in Middle East' },
+        { time: '11:15', source: 'Reuters', text: 'Geopolitical risk premium rising in energy markets' },
+        { time: '10:45', source: 'Bellingcat', text: 'New satellite imagery analysis of border region' },
+        { time: '10:20', source: 'Stratfor', text: 'Iranian proxy forces repositioning in Yemen' }
+      ]);
 
-  useEffect(() => {
-    if ("Notification" in window) Notification.requestPermission();
-    const script = document.createElement('script');
-    script.src = "https://platform.twitter.com/widgets.js";
-    script.async = true;
-    script.charset = "utf-8";
-    document.body.appendChild(script);
-    return () => {
-      document.body.removeChild(script);
+      // Simple threat score calculation
+      const score = 35 + Math.floor(Math.random() * 40);
+      setThreatScore(score);
+      const level = score >= 80 ? 1 : score >= 60 ? 2 : score >= 40 ? 3 : score >= 20 ? 4 : 5;
+      setDefconLevel(level);
+
+      setIsLoading(false);
     };
+
+    loadData();
+    const interval = setInterval(loadData, 60000); // Refresh every minute
+    return () => clearInterval(interval);
   }, []);
 
-  const memoizedMarkers = useMemo(() => markers, [markers]);
-
-  const threatColor = threatLevel === 'HIGH' ? '#ef4444' : threatLevel === 'MEDIUM' ? '#f59e0b' : '#10b981';
+  const activeDefcon = DEFCON_INFO[defconLevel] || DEFCON_INFO[4];
 
   return (
-    <div className="app dark">
+    <div className="app-container">
+      {/* Loading Screen */}
+      <div className={`loading ${!isLoading ? 'hidden' : ''}`}>
+        <div className="loading-logo">PULSE</div>
+        <div className="loading-bar"><div className="loading-fill"></div></div>
+      </div>
+
+      {/* Header */}
       <header className="header">
-        <div className="logo">PULSE</div>
-        <div className="status">
-          <div className="status-dot"></div> OPERATIONAL
+        <div className="header-left">
+          <div className="logo">PULSE</div>
+          <div className="status"><span className="status-dot"></span>OPERATIONAL</div>
         </div>
         <div className="header-time">
-          {new Date().toLocaleTimeString('en-US', { hour12: false })} UTC
+          {new Date().toLocaleTimeString('en-US', { hour12: false, timeZone: 'UTC' })} UTC
         </div>
       </header>
 
+      {/* DEFCON Bar */}
       <div className="defcon-bar">
         <span className="defcon-label">DEFCON STATUS</span>
         <div className="defcon-levels">
           {[1,2,3,4,5].map(l => (
-            <div className={`defcon-level defcon-${l} ${threatLevel === 'HIGH' && l === 2 ? 'active' : ''}`} key={l}>
+            <div
+              key={l}
+              className={`defcon-level defcon-${l} ${defconLevel === l ? 'active' : ''}`}
+            >
               {l}
             </div>
           ))}
         </div>
         <div className="defcon-info">
-          <div className="defcon-name" style={{ color: threatColor }}>
-            {threatLevel === 'HIGH' ? 'COCKED PISTOL' : threatLevel === 'MEDIUM' ? 'FAST PACE' : 'DOUBLE TAKE'}
+          <div className="defcon-name" style={{ color: activeDefcon.color }}>
+            {activeDefcon.name}
           </div>
-          <div className="defcon-desc">
-            {threatLevel === 'HIGH' ? 'Maximum readiness – imminent risk' : threatLevel === 'MEDIUM' ? 'Forces on alert – deployment possible' : 'Heightened watch'}
-          </div>
+          <div className="defcon-desc">{activeDefcon.desc}</div>
         </div>
-        <div className="threat-score">THREAT INDEX: {threatLevel}</div>
+        <div className="threat-score">THREAT INDEX: {threatScore}</div>
       </div>
 
-      <div className="layout">
-        <div className="map-container">
-          <MapContainer center={[20, 0]} zoom={2.5} style={{ height: '100%' }}>
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-            {memoizedMarkers.map((m, i) => (
-              <Marker key={i} position={m.position}>
-                <Popup>{m.popup}</Popup>
-              </Marker>
-            ))}
-          </MapContainer>
-        </div>
-
-        <aside className="sidebar">
-          {isLoading && <div className="loading">Initializing situational awareness...</div>}
-          {error && <div className="error-banner">{error}</div>}
-
-          {alertMessage && (
-            <div className="alert-banner" style={{ background: threatColor }}>
-              <strong>PRIORITY ALERT</strong>
-              <p>{alertMessage}</p>
+      {/* Main Content */}
+      <main className="main">
+        <div className="grid">
+          {/* Global Situation Map Panel */}
+          <article className="panel panel--wide">
+            <header className="panel-header">
+              <div className="panel-title">Global Situation Map</div>
+              <span className="panel-badge live-data">LIVE</span>
+            </header>
+            <div className="panel-content">
+              <div className="map-container">
+                <div id="world-map" style={{ width: '100%', height: '520px' }}></div>
+                <div className="map-overlay">
+                  <div className="map-grid"></div>
+                  <div className="map-scanline"></div>
+                </div>
+              </div>
             </div>
-          )}
+          </article>
 
-          <section className="panel">
-            <h2>Global News Feed</h2>
-            <div className="feed">
+          {/* Priority Intelligence Feed Panel */}
+          <article className="panel">
+            <header className="panel-header">
+              <div className="panel-title">Priority Intelligence Feed</div>
+            </header>
+            <div className="panel-content">
               {news.map((item, i) => (
                 <div key={i} className="feed-item">
-                  <div className="item-title">{item.title}</div>
-                  <div className="item-desc">{item.description?.substring(0, 140) || ''}...</div>
+                  <span className="feed-time">{item.time}</span>
+                  <div className="feed-body">
+                    <div className="feed-source">{item.source}</div>
+                    <div className="feed-text">{item.text}</div>
+                  </div>
                 </div>
               ))}
+              {news.length === 0 && <p className="empty-state">No priority intel at this time</p>}
             </div>
-          </section>
+          </article>
 
-          <section className="panel">
-            <h2>Active Threats</h2>
-            <ul className="threat-list">
-              {threats.map((t, i) => (
-                <li key={i}>
-                  <span className="threat-name">{t.signature || 'Unknown'}</span>
-                  <span className="threat-date">{t.first_seen || 'Recent'}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
+          {/* Add more panels here (Polymarket, Markets, Commodities, etc.) as needed */}
+        </div>
+      </main>
 
-          <section className="panel">
-            <h2>OSINT Feeds</h2>
-            <div className="embed-grid">
-              <div className="embed-item">
-                <a className="twitter-timeline" href="https://twitter.com/BBCBreaking" data-height="320" data-theme="dark">BBC Breaking</a>
-              </div>
-              <div className="embed-item">
-                <a className="twitter-timeline" href="https://twitter.com/Reuters" data-height="320" data-theme="dark">Reuters</a>
-              </div>
-              <div className="embed-item">
-                <a className="twitter-timeline" href="https://twitter.com/bellingcat" data-height="320" data-theme="dark">Bellingcat</a>
-              </div>
-            </div>
-          </section>
-
-          <section className="status-panel">
-            <div className="weather">
-              Reference Weather: {weather ? `${weather.current_weather.temperature}°C / ${weather.current_weather.windspeed} km/h` : '—'}
-            </div>
-          </section>
-        </aside>
-      </div>
-
+      {/* Full Pentagon-grade Styling */}
       <style jsx global>{`
-        .app.dark { background: #0a0c10; color: #e6edf3; height: 100vh; font-family: 'Inter', sans-serif; }
-        .header { background: #111827; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1f2937; }
-        .logo { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 700; color: #3fb950; letter-spacing: 0.05em; }
-        .status { display: flex; align-items: center; gap: 0.5rem; background: rgba(63,185,80,0.1); padding: 0.4rem 0.8rem; border-radius: 4px; border: 1px solid rgba(63,185,80,0.3); font-family: 'JetBrains Mono'; font-size: 0.8rem; }
-        .status-dot { width: 8px; height: 8px; background: #3fb950; border-radius: 50%; animation: blink 2s infinite; }
-        @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-        .header-time { font-family: 'JetBrains Mono'; color: #8b949e; }
-        .defcon-bar { background: #161b22; padding: 1rem 2rem; display: flex; align-items: center; gap: 2rem; border-bottom: 1px solid #30363d; flex-wrap: wrap; }
-        .defcon-label { font-family: 'JetBrains Mono'; color: #8b949e; font-size: 0.85rem; letter-spacing: 0.1em; }
-        .defcon-levels { display: flex; gap: 0.4rem; }
-        .defcon-level { padding: 0.5rem 1rem; font-family: 'JetBrains Mono'; font-weight: 700; border-radius: 4px; opacity: 0.4; border: 1px solid transparent; transition: all 0.3s; }
-        .defcon-level.active { opacity: 1; animation: pulse 2s infinite; }
-        @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 currentColor; } 50% { box-shadow: 0 0 12px 4px currentColor; } }
-        .defcon-1 { background: rgba(248,81,73,0.15); color: #f85149; border-color: #f85149; }
-        .defcon-2 { background: rgba(219,109,40,0.15); color: #db6d28; border-color: #db6d28; }
-        .defcon-3 { background: rgba(210,153,34,0.15); color: #d29922; border-color: #d29922; }
-        .defcon-4 { background: rgba(88,166,255,0.15); color: #58a6ff; border-color: #58a6ff; }
-        .defcon-5 { background: rgba(63,185,80,0.15); color: #3fb950; border-color: #3fb950; }
-        .defcon-info { text-align: center; }
-        .defcon-name { font-family: 'JetBrains Mono'; font-weight: 700; font-size: 1.1rem; }
-        .defcon-desc { font-size: 0.85rem; color: #8b949e; }
-        .threat-score { font-family: 'JetBrains Mono'; background: #161b22; padding: 0.5rem 1rem; border-radius: 4px; border: 1px solid #30363d; }
-        .layout { display: flex; height: calc(100vh - 110px); }
-        .map-container { flex: 1; background: #080a0f; }
-        .sidebar { width: 380px; background: #0d1117; border-left: 1px solid #30363d; overflow-y: auto; padding: 1.5rem; }
-        .panel { margin-bottom: 2rem; }
-        .panel h2 { font-size: 1.25rem; margin-bottom: 1rem; color: #58a6ff; border-bottom: 1px solid #30363d; padding-bottom: 0.5rem; }
-        .feed-item { background: #161b22; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; border-left: 4px solid #3b82f6; }
-        .item-title { font-weight: 600; margin-bottom: 0.5rem; }
-        .item-desc { font-size: 0.9rem; color: #8b949e; }
-        .threat-list li { background: #161b22; padding: 0.8rem; border-radius: 6px; margin-bottom: 0.6rem; display: flex; justify-content: space-between; }
-        .threat-name { color: #f85149; font-weight: 600; }
-        .embed-grid { display: grid; gap: 1rem; }
-        .embed-item { height: 320px; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; }
-        .alert-banner { background: #991b1b; color: white; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; text-align: center; font-weight: bold; animation: pulse 2s infinite; }
-        .loading, .error-banner { text-align: center; padding: 2rem 0; color: #8b949e; }
-        .error-banner { background: #7f1d1d; color: #fecaca; border-radius: 8px; }
-        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
+        :root {
+          --bg-primary: #0a0c10;
+          --bg-secondary: #0d1117;
+          --bg-tertiary: #161b22;
+          --bg-panel: #0d1117;
+          --text-primary: #e6edf3;
+          --text-secondary: #8b949e;
+          --text-muted: #484f58;
+          --accent-green: #3fb950;
+          --accent-blue: #58a6ff;
+          --accent-cyan: #39c5cf;
+          --accent-yellow: #d29922;
+          --accent-orange: #db6d28;
+          --accent-red: #f85149;
+          --border-color: #30363d;
+        }
+
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+        }
+
+        body {
+          font-family: 'Inter', sans-serif;
+          background: var(--bg-primary);
+          color: var(--text-primary);
+          min-height: 100vh;
+        }
+
+        .loading {
+          position: fixed;
+          inset: 0;
+          background: var(--bg-primary);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          transition: opacity 0.5s;
+        }
+
+        .loading.hidden {
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        .loading-logo {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 3rem;
+          font-weight: 700;
+          letter-spacing: 0.5em;
+          color: var(--accent-green);
+          text-shadow: 0 0 30px rgba(63,185,80,0.5);
+        }
+
+        .loading-bar {
+          width: 200px;
+          height: 2px;
+          background: var(--bg-tertiary);
+          margin-top: 30px;
+          overflow: hidden;
+          border-radius: 1px;
+        }
+
+        .loading-fill {
+          height: 100%;
+          background: var(--accent-green);
+          animation: load 2s ease-out forwards;
+        }
+
+        @keyframes load {
+          0% { width: 0; }
+          100% { width: 100%; }
+        }
+
+        .header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 20px;
+          background: var(--bg-secondary);
+          border-bottom: 1px solid var(--border-color);
+          position: sticky;
+          top: 0;
+          z-index: 100;
+        }
+
+        .logo {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 1.25rem;
+          font-weight: 700;
+          letter-spacing: 0.2em;
+          color: var(--accent-green);
+        }
+
+        .status {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 10px;
+          background: rgba(63,185,80,0.1);
+          border: 1px solid rgba(63,185,80,0.3);
+          border-radius: 4px;
+          font-family: 'JetBrains Mono';
+          font-size: 0.7rem;
+          color: var(--accent-green);
+        }
+
+        .status-dot {
+          width: 6px;
+          height: 6px;
+          background: var(--accent-green);
+          border-radius: 50%;
+          animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+
+        .defcon-bar {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 30px;
+          padding: 12px 20px;
+          background: var(--bg-tertiary);
+          border-bottom: 1px solid var(--border-color);
+          flex-wrap: wrap;
+        }
+
+        .defcon-label {
+          font-family: 'JetBrains Mono';
+          font-size: 0.75rem;
+          color: var(--text-muted);
+          letter-spacing: 0.1em;
+        }
+
+        .defcon-levels {
+          display: flex;
+          gap: 4px;
+        }
+
+        .defcon-level {
+          padding: 6px 14px;
+          font-family: 'JetBrains Mono';
+          font-size: 0.75rem;
+          font-weight: 600;
+          border-radius: 4px;
+          opacity: 0.3;
+          border: 1px solid transparent;
+          transition: all 0.3s;
+        }
+
+        .defcon-level.active {
+          opacity: 1;
+          animation: defcon-pulse 2s infinite;
+        }
+
+        @keyframes defcon-pulse {
+          0%, 100% { box-shadow: 0 0 0 0 currentColor; }
+          50% { box-shadow: 0 0 10px 2px currentColor; }
+        }
+
+        .defcon-1 { background: rgba(248,81,73,0.2); color: var(--accent-red); border-color: var(--accent-red); }
+        .defcon-2 { background: rgba(219,109,40,0.2); color: var(--accent-orange); border-color: var(--accent-orange); }
+        .defcon-3 { background: rgba(210,153,34,0.2); color: var(--accent-yellow); border-color: var(--accent-yellow); }
+        .defcon-4 { background: rgba(88,166,255,0.2); color: var(--accent-blue); border-color: var(--accent-blue); }
+        .defcon-5 { background: rgba(63,185,80,0.2); color: var(--accent-green); border-color: var(--accent-green); }
+
+        .defcon-info {
+          text-align: center;
+        }
+
+        .defcon-name {
+          font-family: 'JetBrains Mono';
+          font-size: 0.9rem;
+          font-weight: 600;
+          margin-bottom: 2px;
+        }
+
+        .defcon-desc {
+          font-size: 0.7rem;
+          color: var(--text-secondary);
+        }
+
+        .threat-score {
+          font-family: 'JetBrains Mono';
+          font-size: 0.7rem;
+          color: var(--text-muted);
+          padding: 4px 10px;
+          background: var(--bg-secondary);
+          border-radius: 4px;
+        }
+
+        .main {
+          padding: 16px;
+          max-width: 1800px;
+          margin: 0 auto;
+        }
+
+        .grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+          gap: 16px;
+        }
+
+        .panel--wide {
+          grid-column: span 2;
+        }
+
+        .panel {
+          background: var(--bg-panel);
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          overflow: hidden;
+        }
+
+        .panel-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 16px;
+          background: var(--bg-tertiary);
+          border-bottom: 1px solid var(--border-color);
+        }
+
+        .panel-title {
+          font-weight: 600;
+          font-size: 0.85rem;
+        }
+
+        .panel-badge {
+          padding: 2px 6px;
+          background: var(--accent-red);
+          color: #fff;
+          font-family: 'JetBrains Mono';
+          font-size: 0.6rem;
+          font-weight: 700;
+          border-radius: 3px;
+          animation: pulse 1.5s infinite;
+        }
+
+        .panel-badge.live-data {
+          background: var(--accent-cyan);
+        }
+
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+
+        .map-container {
+          position: relative;
+          height: 520px;
+          background: linear-gradient(180deg, #0d1520 0%, #080a0f 100%);
+        }
+
+        #world-map {
+          width: 100%;
+          height: 100%;
+        }
+
+        .map-overlay {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+        }
+
+        .map-scanline {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 2px;
+          background: linear-gradient(90deg, transparent 0%, rgba(63,185,80,0.4) 50%, transparent 100%);
+          animation: scan 6s linear infinite;
+        }
+
+        @keyframes scan {
+          0% { top: 0; opacity: 0; }
+          5% { opacity: 1; }
+          95% { opacity: 1; }
+          100% { top: 100%; opacity: 0; }
+        }
+
+        .map-grid {
+          position: absolute;
+          inset: 0;
+          background-image: 
+            linear-gradient(rgba(63,185,80,0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(63,185,80,0.03) 1px, transparent 1px);
+          background-size: 50px 50px;
+        }
+
+        .feed-item {
+          display: flex;
+          gap: 12px;
+          padding: 10px 12px;
+          background: var(--bg-secondary);
+          border-radius: 6px;
+          border-left: 3px solid var(--accent-blue);
+          transition: all 0.2s;
+        }
+
+        .feed-item:hover {
+          background: var(--bg-tertiary);
+        }
+
+        .feed-time {
+          font-family: 'JetBrains Mono';
+          font-size: 0.7rem;
+          color: var(--text-muted);
+          flex-shrink: 0;
+          width: 45px;
+        }
+
+        .feed-source {
+          font-size: 0.7rem;
+          color: var(--accent-blue);
+          margin-bottom: 2px;
+        }
+
+        .feed-text {
+          font-size: 0.8rem;
+          color: var(--text-primary);
+          line-height: 1.4;
+        }
+
+        .error {
+          background: rgba(248,81,73,0.1);
+          border: 1px solid rgba(248,81,73,0.3);
+          color: #f85149;
+          padding: 12px;
+          border-radius: 6px;
+          margin-bottom: 16px;
+          text-align: center;
+        }
       `}</style>
     </div>
   );
