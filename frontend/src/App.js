@@ -149,8 +149,13 @@ function App() {
             center={[20, 0]} 
             zoom={2.5} 
             style={{ height: '100%', width: '100%' }}
-            whenCreated={map => {
-              setTimeout(() => map.invalidateSize(), 100); // Fix black screen
+            ref={mapRef}
+            whenCreated={(map) => {
+              // Force resize after mount to fix black screen
+              setTimeout(() => map.invalidateSize(), 200);
+              // Additional resize on window resize
+              window.addEventListener('resize', () => map.invalidateSize());
+              return () => window.removeEventListener('resize', () => map.invalidateSize());
             }}
           >
             {/* Dark tactical tiles */}
@@ -294,7 +299,7 @@ function App() {
         .defcon-desc { font-size: 0.85rem; color: #8b949e; }
         .threat-score { font-family: 'JetBrains Mono'; background: #161b22; padding: 0.5rem 1rem; border-radius: 4px; border: 1px solid #30363d; }
         .layout { display: flex; height: calc(100vh - 140px); width: 100%; }
-        .map-container { flex: 1; background: #000; position: relative; height: 100%; }
+        .map-container { flex: 1; background: #000; position: relative; height: 100%; min-height: 500px; }
         .sidebar { width: 380px; background: #0d1117; border-left: 1px solid #30363d; overflow-y: auto; padding: 1.5rem; box-sizing: border-box; }
         .panel { margin-bottom: 2rem; background: #111827; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; }
         .panel h2 { font-size: 1.25rem; margin: 0; padding: 1rem; background: #161b22; color: #58a6ff; font-family: 'JetBrains Mono'; }
