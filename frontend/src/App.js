@@ -3,8 +3,7 @@ import { Viewer, Entity, PolygonGraphics, PointGraphics, LabelGraphics } from 'r
 import * as Cesium from 'cesium';
 import axios from 'axios';
 
-// Set Cesium Ion token (get free from https://cesium.com/ion/signup)
-// Add to Netlify env vars as REACT_APP_CESIUM_ION_TOKEN
+// Cesium Ion token (add to Netlify env vars as REACT_APP_CESIUM_ION_TOKEN)
 Cesium.Ion.defaultAccessToken = process.env.REACT_APP_CESIUM_ION_TOKEN || '';
 
 const DEFCON_INFO = {
