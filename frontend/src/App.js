@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polygon } from 'react-leaflet';
 import axios from 'axios';
 
@@ -21,6 +21,7 @@ const DEFCON_INFO = {
 };
 
 function App() {
+  const mapRef = useRef(null);
   const [news, setNews] = useState([]);
   const [threats, setThreats] = useState([]);
   const [weather, setWeather] = useState(null);
@@ -95,11 +96,16 @@ function App() {
 
   const threatColor = threatLevel === 'HIGH' ? '#ef4444' : threatLevel === 'MEDIUM' ? '#f59e0b' : '#10b981';
 
-  // Tactical overlays: red zones (polygons)
+  // Tactical overlays: red critical zones (polygons)
   const redZones = [
-    { name: 'Middle East Hotspot', positions: [[30, 40], [35, 50], [25, 55], [20, 45], [30, 40]] },
-    { name: 'Eastern Europe Tension', positions: [[48, 25], [55, 35], [50, 40], [45, 30], [48, 25]] },
-    { name: 'South China Sea', positions: [[10, 110], [20, 120], [5, 130], [0, 115], [10, 110]] }
+    { name: 'Middle East Critical Zone', positions: [[30, 40], [35, 50], [25, 55], [20, 45], [30, 40]] },
+    { name: 'Eastern Europe Tension Zone', positions: [[48, 25], [55, 35], [50, 40], [45, 30], [48, 25]] },
+    { name: 'South China Sea Flashpoint', positions: [[10, 110], [20, 120], [5, 130], [0, 115], [10, 110]] }
+  ];
+
+  // Amber watch zones
+  const amberZones = [
+    { name: 'Indo-Pacific Watch Area', positions: [[0, 90], [15, 110], [-10, 130], [-15, 100], [0, 90]] }
   ];
 
   return (
@@ -143,9 +149,11 @@ function App() {
             center={[20, 0]} 
             zoom={2.5} 
             style={{ height: '100%', width: '100%' }}
-            whenCreated={map => setTimeout(() => map.invalidateSize(), 100)} // Fix sizing
+            whenCreated={map => {
+              setTimeout(() => map.invalidateSize(), 100); // Fix black screen
+            }}
           >
-            {/* Dark tactical tiles (CartoDB dark matter) */}
+            {/* Dark tactical tiles */}
             <TileLayer
               url="https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -155,7 +163,7 @@ function App() {
                 <Popup>{m.popup}</Popup>
               </Marker>
             ))}
-            {/* Tactical red zones */}
+            {/* Red critical zones */}
             {redZones.map((zone, i) => (
               <Polygon
                 key={i}
@@ -163,6 +171,16 @@ function App() {
                 pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.15, weight: 2 }}
               >
                 <Popup>{zone.name} - Critical Hotspot</Popup>
+              </Polygon>
+            ))}
+            {/* Amber watch zones */}
+            {amberZones.map((zone, i) => (
+              <Polygon
+                key={i}
+                positions={zone.positions}
+                pathOptions={{ color: 'orange', fillColor: 'orange', fillOpacity: 0.1, weight: 1.5 }}
+              >
+                <Popup>{zone.name} - Watch Area</Popup>
               </Polygon>
             ))}
           </MapContainer>
@@ -208,17 +226,35 @@ function App() {
             <h2>Live OSINT Feeds (X)</h2>
             <div className="embed-grid">
               <div className="embed-item">
-                <a className="twitter-timeline" href="https://twitter.com/BBCBreaking" data-height="320" data-theme="dark" data-chrome="noheader nofooter noborders transparent">
+                <a 
+                  className="twitter-timeline" 
+                  href="https://twitter.com/BBCBreaking" 
+                  data-height="320" 
+                  data-theme="dark"
+                  data-chrome="noheader nofooter noborders transparent"
+                >
                   Tweets by BBCBreaking
                 </a>
               </div>
               <div className="embed-item">
-                <a className="twitter-timeline" href="https://twitter.com/Reuters" data-height="320" data-theme="dark" data-chrome="noheader nofooter noborders transparent">
+                <a 
+                  className="twitter-timeline" 
+                  href="https://twitter.com/Reuters" 
+                  data-height="320" 
+                  data-theme="dark"
+                  data-chrome="noheader nofooter noborders transparent"
+                >
                   Tweets by Reuters
                 </a>
               </div>
               <div className="embed-item">
-                <a className="twitter-timeline" href="https://twitter.com/bellingcat" data-height="320" data-theme="dark" data-chrome="noheader nofooter noborders transparent">
+                <a 
+                  className="twitter-timeline" 
+                  href="https://twitter.com/bellingcat" 
+                  data-height="320" 
+                  data-theme="dark"
+                  data-chrome="noheader nofooter noborders transparent"
+                >
                   Tweets by bellingcat
                 </a>
               </div>
@@ -233,7 +269,7 @@ function App() {
         </aside>
       </div>
 
-      {/* Styling */}
+      {/* Tactical Styling */}
       <style jsx global>{`
         .app.dark { background: #0a0c10; color: #e6edf3; height: 100vh; font-family: 'Inter', sans-serif; overflow: hidden; }
         .header { background: #111827; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1f2937; z-index: 100; position: relative; }
