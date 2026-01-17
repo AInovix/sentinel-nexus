@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import jsVectorMap from 'jsvectormap';
-import 'jsvectormap/dist/jsvectormap.min.css'; // FIXED: correct minified CSS path
 import 'jsvectormap/dist/maps/world.js';
 
 const DEFCON_INFO = {
@@ -16,21 +15,19 @@ const COUNTRY_COLORS = {
   UA: '#f8514966', IL: '#f8514966', KP: '#f8514966', TW: '#db6d2866',
   VE: '#f8514966', PS: '#f8514966', SY: '#f8514966', SD: '#db6d2866',
   ER: '#db6d2866', AF: '#f8514966', LB: '#f8514966', YE: '#f8514966',
-  // Extend as needed
 };
 
 const CITIES = [
-  { name: 'CARACAS', country: 'Venezuela', coords: [10.48, -66.87], type: 'critical' },
-  { name: 'TEHRAN', country: 'Iran', coords: [35.69, 51.39], type: 'critical' },
-  { name: 'KYIV', country: 'Ukraine', coords: [50.45, 30.52], type: 'critical' },
-  { name: 'GAZA', country: 'Palestine', coords: [31.5, 34.47], type: 'critical' },
-  { name: 'DAMASCUS', country: 'Syria', coords: [33.51, 36.29], type: 'critical' },
-  { name: 'KHARTOUM', country: 'Sudan', coords: [15.5, 32.56], type: 'elevated' },
-  { name: 'ASMARA', country: 'Eritrea', coords: [15.34, 38.93], type: 'elevated' },
-  { name: 'TAIPEI', country: 'Taiwan', coords: [25.03, 121.57], type: 'elevated' },
-  { name: 'BEIJING', country: 'China', coords: [39.90, 116.41], type: 'watch' },
-  { name: 'MOSCOW', country: 'Russia', coords: [55.76, 37.62], type: 'watch' },
-  // Add more cities if desired
+  { name: 'CARACAS', coords: [10.48, -66.87], type: 'critical' },
+  { name: 'TEHRAN', coords: [35.69, 51.39], type: 'critical' },
+  { name: 'KYIV', coords: [50.45, 30.52], type: 'critical' },
+  { name: 'GAZA', coords: [31.5, 34.47], type: 'critical' },
+  { name: 'DAMASCUS', coords: [33.51, 36.29], type: 'critical' },
+  { name: 'KHARTOUM', coords: [15.5, 32.56], type: 'elevated' },
+  { name: 'ASMARA', coords: [15.34, 38.93], type: 'elevated' },
+  { name: 'TAIPEI', coords: [25.03, 121.57], type: 'elevated' },
+  { name: 'BEIJING', coords: [39.90, 116.41], type: 'watch' },
+  { name: 'MOSCOW', coords: [55.76, 37.62], type: 'watch' },
 ];
 
 function App() {
@@ -42,7 +39,6 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Initialize jsVectorMap once
     if (!mapRef.current) {
       mapRef.current = new jsVectorMap({
         selector: '#world-map',
@@ -68,7 +64,6 @@ function App() {
         }
       });
 
-      // Apply country colors
       Object.keys(COUNTRY_COLORS).forEach(code => {
         if (mapRef.current.regions[code]) {
           mapRef.current.regions[code].element.shape.setStyle('fill', COUNTRY_COLORS[code]);
@@ -76,13 +71,11 @@ function App() {
       });
     }
 
-    // Load fallback data (replace with real API when backend ready)
     const loadData = () => {
       setNews([
         { time: '11:30', source: 'OSINT', text: 'Multiple indicators of elevated activity in Middle East' },
         { time: '11:15', source: 'Reuters', text: 'Geopolitical risk premium rising in energy markets' },
-        { time: '10:45', source: 'Bellingcat', text: 'New satellite imagery analysis of border region' },
-        { time: '10:20', source: 'Stratfor', text: 'Iranian proxy forces repositioning in Yemen' }
+        { time: '10:45', source: 'Bellingcat', text: 'New satellite imagery analysis of border region' }
       ]);
 
       const score = 35 + Math.floor(Math.random() * 40);
@@ -94,7 +87,7 @@ function App() {
     };
 
     loadData();
-    const interval = setInterval(loadData, 60000); // Refresh every minute
+    const interval = setInterval(loadData, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -102,13 +95,11 @@ function App() {
 
   return (
     <div className="app-container">
-      {/* Loading Screen */}
       <div className={`loading ${!isLoading ? 'hidden' : ''}`}>
         <div className="loading-logo">PULSE</div>
         <div className="loading-bar"><div className="loading-fill"></div></div>
       </div>
 
-      {/* Header */}
       <header className="header">
         <div className="header-left">
           <div className="logo">PULSE</div>
@@ -119,7 +110,6 @@ function App() {
         </div>
       </header>
 
-      {/* DEFCON Bar */}
       <div className="defcon-bar">
         <span className="defcon-label">DEFCON STATUS</span>
         <div className="defcon-levels">
@@ -141,10 +131,8 @@ function App() {
         <div className="threat-score">THREAT INDEX: {threatScore}</div>
       </div>
 
-      {/* Main Content */}
       <main className="main">
         <div className="grid">
-          {/* Global Situation Map Panel */}
           <article className="panel panel--wide">
             <header className="panel-header">
               <div className="panel-title">Global Situation Map</div>
@@ -161,7 +149,6 @@ function App() {
             </div>
           </article>
 
-          {/* Priority Intelligence Feed Panel */}
           <article className="panel">
             <header className="panel-header">
               <div className="panel-title">Priority Intelligence Feed</div>
@@ -176,15 +163,11 @@ function App() {
                   </div>
                 </div>
               ))}
-              {news.length === 0 && <p className="empty-state">No priority intel at this time</p>}
             </div>
           </article>
-
-          {/* Add more panels (Polymarket, Markets, etc.) as needed */}
         </div>
       </main>
 
-      {/* Pentagon-grade Styling */}
       <style jsx global>{`
         :root {
           --bg-primary: #0a0c10;
