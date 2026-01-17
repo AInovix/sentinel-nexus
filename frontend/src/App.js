@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polygon } from 'react-leaflet';
 import axios from 'axios';
 
 import 'leaflet/dist/leaflet.css';
@@ -11,14 +11,6 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
-
-const DEFCON_INFO = {
-  1: { name: 'COCKED PISTOL', desc: 'Maximum readiness – imminent nuclear risk', color: '#f85149' },
-  2: { name: 'FAST PACE', desc: 'Forces ready to deploy in 6 hours', color: '#db6d28' },
-  3: { name: 'ROUND HOUSE', desc: 'Air Force mobilization in 15 minutes', color: '#d29922' },
-  4: { name: 'DOUBLE TAKE', desc: 'Heightened watch & security', color: '#58a6ff' },
-  5: { name: 'FADE OUT', desc: 'Normal peacetime posture', color: '#3fb950' }
-};
 
 function App() {
   const [news, setNews] = useState([]);
@@ -35,16 +27,31 @@ function App() {
     setError(null);
 
     try {
-      // When backend is ready, use this:
-      // const res = await axios.get('https://your-backend.onrender.com/api/dashboard');
-      // For now: fallback only
-      throw new Error('No backend');
-    } catch {
-      setError('Live feeds offline – strategic fallback active');
+      // PASTE YOUR REAL BACKEND URL HERE ONCE DEPLOYED ON RENDER
+      const res = await axios.get('https://your-backend-url.onrender.com/api/dashboard'); // ← CHANGE THIS
+      const newsItems = res.data.news || [];
+      setNews(newsItems);
+      setThreats(res.data.threats || []);
+      setWeather(res.data.weather);
+
+      const newMarkers = newsItems.map(() => ({
+        position: [-60 + Math.random() * 140, -170 + Math.random() * 340],
+        popup: 'Active Event'
+      }));
+      setMarkers(newMarkers);
+
+      const threatKeywords = /threat|attack|missile|conflict|crisis|war|bomb|strike|invasion|cyber|breach/i;
+      const hasHighThreat = newsItems.some(item => threatKeywords.test(item.description || item.title || ''));
+      const level = hasHighThreat ? 'HIGH' : newsItems.length > 5 ? 'MEDIUM' : 'LOW';
+      setThreatLevel(level);
+      setAlertMessage(level === 'HIGH' ? 'ELEVATED THREAT LEVEL – IMMEDIATE REVIEW REQUIRED' : level === 'MEDIUM' ? 'WATCH CONDITION – MONITORING INTENSIFIED' : '');
+    } catch (err) {
+      setError('Live feeds offline – strategic overview active');
+      // Rich fallback data
       setNews([
-        { title: 'Unconfirmed missile launch detected', description: 'High-confidence satellite source – Middle East region' },
-        { title: 'Cyber attack on critical infrastructure', description: 'State actor attribution ongoing' },
-        { title: 'Border escalation – troop movements observed', description: 'Diplomatic de-escalation channels activated' }
+        { title: 'Unconfirmed missile activity in contested zone', description: 'Satellite imagery confirms movement – high confidence' },
+        { title: 'Cyber intrusion on national grid', description: 'State actor suspected – containment underway' },
+        { title: 'Border escalation – troop mobilization', description: 'Diplomatic channels engaged' }
       ]);
       setThreats([
         { signature: 'RANSOMWARE-VAR-2026A', first_seen: '2026-01-16' },
@@ -55,10 +62,8 @@ function App() {
         { position: [35, 45], popup: 'Hot Zone Alpha' },
         { position: [50, 30], popup: 'Active Conflict Zone' }
       ]);
-      const score = 35 + Math.random() * 40;
-      const level = score >= 80 ? 'HIGH' : score >= 50 ? 'MEDIUM' : 'LOW';
-      setThreatLevel(level);
-      setAlertMessage(level === 'HIGH' ? 'ELEVATED THREAT LEVEL – IMMEDIATE REVIEW REQUIRED' : level === 'MEDIUM' ? 'WATCH CONDITION – MONITORING INTENSIFIED' : '');
+      setThreatLevel('MEDIUM');
+      setAlertMessage('Fallback mode – limited intelligence');
     } finally {
       setIsLoading(false);
     }
@@ -83,6 +88,12 @@ function App() {
 
   const threatColor = threatLevel === 'HIGH' ? '#ef4444' : threatLevel === 'MEDIUM' ? '#f59e0b' : '#10b981';
 
+  // Tactical red zones (critical hotspots) on map
+  const redZones = [
+    { name: 'Middle East Hotspot', positions: [[30, 40], [35, 50], [25, 55], [20, 45]] },
+    { name: 'Eastern Europe Tension', positions: [[48, 25], [55, 35], [50, 40], [45, 30]] },
+  ];
+
   return (
     <div className="app dark">
       <div className={`loading ${!isLoading ? 'hidden' : ''}`}>
@@ -102,10 +113,7 @@ function App() {
         <span className="defcon-label">DEFCON STATUS</span>
         <div className="defcon-levels">
           {[1,2,3,4,5].map(l => (
-            <div
-              key={l}
-              className={`defcon-level defcon-${l} ${threatLevel === 'HIGH' && l === 2 ? 'active' : threatLevel === 'MEDIUM' && l === 3 ? 'active' : threatLevel === 'LOW' && l === 4 ? 'active' : ''}`}
-            >
+            <div key={l} className={`defcon-level defcon-${l} ${defconLevel === l ? 'active' : ''}`}>
               {l}
             </div>
           ))}
@@ -123,12 +131,22 @@ function App() {
 
       <div className="layout">
         <div className="map-container">
-          <MapContainer center={[20, 0]} zoom={2.5} style={{ height: '100%' }}>
+          <MapContainer center={[20, 0]} zoom={2.5} style={{ height: '100%', width: '100%' }}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             {memoizedMarkers.map((m, i) => (
               <Marker key={i} position={m.position}>
                 <Popup>{m.popup}</Popup>
               </Marker>
+            ))}
+            {/* Tactical red zones overlay */}
+            {redZones.map((zone, i) => (
+              <Polygon
+                key={i}
+                positions={zone.positions}
+                pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.2 }}
+              >
+                <Popup>{zone.name}</Popup>
+              </Polygon>
             ))}
           </MapContainer>
         </div>
@@ -168,17 +186,18 @@ function App() {
             </ul>
           </section>
 
+          {/* X Embeds Panel */}
           <section className="panel">
-            <h2>OSINT Feeds</h2>
+            <h2>Live OSINT Feeds (X)</h2>
             <div className="embed-grid">
               <div className="embed-item">
-                <a className="twitter-timeline" href="https://twitter.com/BBCBreaking" data-height="320" data-theme="dark">BBC Breaking</a>
+                <a className="twitter-timeline" href="https://twitter.com/BBCBreaking" data-height="320" data-theme="dark">Tweets by BBCBreaking</a>
               </div>
               <div className="embed-item">
-                <a className="twitter-timeline" href="https://twitter.com/Reuters" data-height="320" data-theme="dark">Reuters</a>
+                <a className="twitter-timeline" href="https://twitter.com/Reuters" data-height="320" data-theme="dark">Tweets by Reuters</a>
               </div>
               <div className="embed-item">
-                <a className="twitter-timeline" href="https://twitter.com/bellingcat" data-height="320" data-theme="dark">Bellingcat</a>
+                <a className="twitter-timeline" href="https://twitter.com/bellingcat" data-height="320" data-theme="dark">Tweets by bellingcat</a>
               </div>
             </div>
           </section>
@@ -191,6 +210,7 @@ function App() {
         </aside>
       </div>
 
+      {/* Pentagon-grade Styling */}
       <style jsx global>{`
         .app.dark { background: #0a0c10; color: #e6edf3; height: 100vh; font-family: 'Inter', sans-serif; }
         .header { background: #111827; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1f2937; }
@@ -215,7 +235,7 @@ function App() {
         .defcon-desc { font-size: 0.85rem; color: #8b949e; }
         .threat-score { font-family: 'JetBrains Mono'; background: #161b22; padding: 0.5rem 1rem; border-radius: 4px; border: 1px solid #30363d; }
         .layout { display: flex; height: calc(100vh - 110px); }
-        .map-container { flex: 1; background: #080a0f; }
+        .map-container { flex: 1; background: #080a0f; height: 100%; }
         .sidebar { width: 380px; background: #0d1117; border-left: 1px solid #30363d; overflow-y: auto; padding: 1.5rem; }
         .panel { margin-bottom: 2rem; }
         .panel h2 { font-size: 1.25rem; margin-bottom: 1rem; color: #58a6ff; border-bottom: 1px solid #30363d; padding-bottom: 0.5rem; }
