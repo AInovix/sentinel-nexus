@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import jsVectorMap from 'jsvectormap';
-import 'jsvectormap/dist/css/jsvectormap.css'; // Correct CSS import path
+import 'jsvectormap/dist/jsvectormap.min.css'; // FIXED: correct minified CSS path
 import 'jsvectormap/dist/maps/world.js';
 
 const DEFCON_INFO = {
@@ -30,7 +30,7 @@ const CITIES = [
   { name: 'TAIPEI', country: 'Taiwan', coords: [25.03, 121.57], type: 'elevated' },
   { name: 'BEIJING', country: 'China', coords: [39.90, 116.41], type: 'watch' },
   { name: 'MOSCOW', country: 'Russia', coords: [55.76, 37.62], type: 'watch' },
-  // Add more from your original list if needed
+  // Add more cities if desired
 ];
 
 function App() {
@@ -76,7 +76,7 @@ function App() {
       });
     }
 
-    // Load fallback data (real API would replace this)
+    // Load fallback data (replace with real API when backend ready)
     const loadData = () => {
       setNews([
         { time: '11:30', source: 'OSINT', text: 'Multiple indicators of elevated activity in Middle East' },
@@ -94,7 +94,7 @@ function App() {
     };
 
     loadData();
-    const interval = setInterval(loadData, 60000);
+    const interval = setInterval(loadData, 60000); // Refresh every minute
     return () => clearInterval(interval);
   }, []);
 
@@ -180,7 +180,7 @@ function App() {
             </div>
           </article>
 
-          {/* You can add more panels like Polymarket, Markets, etc. */}
+          {/* Add more panels (Polymarket, Markets, etc.) as needed */}
         </div>
       </main>
 
